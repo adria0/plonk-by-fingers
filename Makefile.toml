@@ -1,0 +1,9 @@
+[tasks.doc-katex]
+env = { "RUSTDOCFLAGS" = "--html-in-header .cargo/katex-header.html" }
+command = "cargo"
+args = ["doc", "--no-deps"]
+
+[tasks.all]
+dependencies = [
+    "doc-katex"
+]

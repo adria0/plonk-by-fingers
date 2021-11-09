@@ -210,6 +210,7 @@ mod tests {
     #[test]
     fn test_inv_matrix() {
         let m = M::from(&[1, 2, 3, 4, 1, 6, 7, 8, 9], 3, 3);
+        assert_ne!(m, m.inv());
         assert_eq!(m, m.inv().inv());
     }
 }

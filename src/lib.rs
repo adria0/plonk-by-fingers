@@ -1,4 +1,4 @@
-pub mod constrains;
+pub mod constraints;
 pub mod ec;
 pub mod field;
 pub mod matrix;

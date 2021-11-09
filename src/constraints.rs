@@ -105,16 +105,16 @@ pub struct Assigments {
 }
 
 impl Constrains {
-    pub fn new(gates: &[Gate], copy_constrains: (Vec<CopyOf>, Vec<CopyOf>, Vec<CopyOf>)) -> Self {
+    pub fn new(gates: &[Gate], copy_constraints: (Vec<CopyOf>, Vec<CopyOf>, Vec<CopyOf>)) -> Self {
         Self {
             q_l: gates.iter().map(|g| g.q_l).collect(),
             q_r: gates.iter().map(|g| g.q_r).collect(),
             q_o: gates.iter().map(|g| g.q_o).collect(),
             q_m: gates.iter().map(|g| g.q_m).collect(),
             q_c: gates.iter().map(|g| g.q_c).collect(),
-            c_a: copy_constrains.0,
-            c_b: copy_constrains.1,
-            c_c: copy_constrains.2,
+            c_a: copy_constraints.0,
+            c_b: copy_constraints.1,
+            c_c: copy_constraints.2,
         }
     }
 
@@ -132,7 +132,7 @@ impl Constrains {
             }
         }
 
-        // check copy constrains
+        // check copy constraints
         assert_eq!(v.a.len(), self.c_a.len());
         assert_eq!(v.a.len(), self.c_b.len());
         assert_eq!(v.a.len(), self.c_c.len());

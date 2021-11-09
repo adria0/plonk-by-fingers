@@ -23,7 +23,7 @@ fn extended_gcd(a: i64, b: i64) -> (i64, i64, i64) {
     (old_r, old_s, old_t)
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Field<const M: u64>(u64);
 
 #[allow(non_snake_case)]
@@ -38,6 +38,9 @@ pub fn Fi64<const M: u64>(n: i64) -> Field<M> {
 impl<const M: u64> Field<M> {
     pub fn from(n: u64) -> Self {
         Self(n % M)
+    }
+    pub fn order(&self) -> u64 {
+        M
     }
     pub fn zero() -> Self {
         Self::from(0)

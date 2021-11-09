@@ -50,7 +50,7 @@ impl<const M: u64> Poly<M> {
     }
 
     /// Creates a polinomial that contains a set of `p` points, by using lagrange
-    /// see https://en.wikipedia.org/wiki/Lagrange_polynomial
+    /// see <https://en.wikipedia.org/wiki/Lagrange_polynomial>
     pub fn lagrange(p: &[(Field<M>, Field<M>)]) -> Self {
         let k = p.len();
         let mut l = Poly::zero();
