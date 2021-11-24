@@ -1,25 +1,21 @@
-#![allow(dead_code, unused_imports)]
+#![allow(clippy::len_without_is_empty)]
 
 use std::fmt::Display;
 
-use super::ec::{g1f, g2f, G1Point, G2Point};
-use super::field::Field;
-use super::matrix::Matrix;
-use super::plonk::{f101, F17, P17};
-use super::poly::Poly;
+use super::ec::Field;
 
 // (q_l * a) + (q_r * b) + (q_o * c) + (q_m * a * b) + q_c = 0
 // where a,b,c are the left, right and output wires of the gate
-pub struct Gate {
-    pub q_l: F17,
-    pub q_r: F17,
-    pub q_o: F17,
-    pub q_m: F17,
-    pub q_c: F17,
+pub struct Gate<F: Field> {
+    pub q_l: F,
+    pub q_r: F,
+    pub q_o: F,
+    pub q_m: F,
+    pub q_c: F,
 }
 
-impl Gate {
-    pub fn new(q_l: F17, q_r: F17, q_o: F17, q_m: F17, q_c: F17) -> Self {
+impl<F: Field> Gate<F> {
+    pub fn new(q_l: F, q_r: F, q_o: F, q_m: F, q_c: F) -> Self {
         Gate {
             q_l,
             q_r,
@@ -30,28 +26,28 @@ impl Gate {
     }
     pub fn sum_a_b() -> Self {
         Gate {
-            q_l: F17::one(),
-            q_r: F17::one(),
-            q_o: -F17::one(),
-            q_m: F17::zero(),
-            q_c: F17::zero(),
+            q_l: F::one(),
+            q_r: F::one(),
+            q_o: -F::one(),
+            q_m: F::zero(),
+            q_c: F::zero(),
         }
     }
     pub fn mul_a_b() -> Self {
         Gate {
-            q_l: F17::zero(),
-            q_r: F17::zero(),
-            q_o: -F17::one(),
-            q_m: F17::one(),
-            q_c: F17::zero(),
+            q_l: F::zero(),
+            q_r: F::zero(),
+            q_o: -F::one(),
+            q_m: F::one(),
+            q_c: F::zero(),
         }
     }
-    pub fn bind_a(value: F17) -> Self {
+    pub fn bind_a(value: F) -> Self {
         Gate {
-            q_l: F17::one(),
-            q_r: F17::zero(),
-            q_o: F17::zero(),
-            q_m: F17::one(),
+            q_l: F::one(),
+            q_r: F::zero(),
+            q_o: F::zero(),
+            q_m: F::one(),
             q_c: value,
         }
     }
@@ -64,7 +60,7 @@ pub enum CopyOf {
     C(usize),
 }
 
-impl Display for Gate {
+impl<F: Field> Display for Gate<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(
             f,
@@ -75,37 +71,40 @@ impl Display for Gate {
 }
 
 #[derive(Debug)]
-pub struct Constrains {
-    pub q_l: Vec<F17>,
-    pub q_r: Vec<F17>,
-    pub q_o: Vec<F17>,
-    pub q_m: Vec<F17>,
-    pub q_c: Vec<F17>,
+pub struct Constrains<F: Field> {
+    pub q_l: Vec<F>,
+    pub q_r: Vec<F>,
+    pub q_o: Vec<F>,
+    pub q_m: Vec<F>,
+    pub q_c: Vec<F>,
     pub c_a: Vec<CopyOf>,
     pub c_b: Vec<CopyOf>,
     pub c_c: Vec<CopyOf>,
 }
 
-pub struct Assigment {
-    pub a: F17,
-    pub b: F17,
-    pub c: F17,
+pub struct Assigment<F: Field> {
+    pub a: F,
+    pub b: F,
+    pub c: F,
 }
 
-impl Assigment {
-    pub fn new(a: F17, b: F17, c: F17) -> Self {
+impl<F: Field> Assigment<F> {
+    pub fn new(a: F, b: F, c: F) -> Self {
         Self { a, b, c }
     }
 }
 
-pub struct Assigments {
-    pub a: Vec<F17>,
-    pub b: Vec<F17>,
-    pub c: Vec<F17>,
+pub struct Assigments<F: Field> {
+    pub a: Vec<F>,
+    pub b: Vec<F>,
+    pub c: Vec<F>,
 }
 
-impl Constrains {
-    pub fn new(gates: &[Gate], copy_constraints: (Vec<CopyOf>, Vec<CopyOf>, Vec<CopyOf>)) -> Self {
+impl<F: Field> Constrains<F> {
+    pub fn new(
+        gates: &[Gate<F>],
+        copy_constraints: (Vec<CopyOf>, Vec<CopyOf>, Vec<CopyOf>),
+    ) -> Self {
         Self {
             q_l: gates.iter().map(|g| g.q_l).collect(),
             q_r: gates.iter().map(|g| g.q_r).collect(),
@@ -118,7 +117,7 @@ impl Constrains {
         }
     }
 
-    pub fn satisfies(&self, v: &Assigments) -> bool {
+    pub fn satisfies(&self, v: &Assigments<F>) -> bool {
         // check gates (q_l * a) + (q_r * b) + (q_o * c) + (q_m * a * b) + q_c = 0
         assert_eq!(v.a.len(), self.q_l.len());
         for n in 0..v.a.len() {
@@ -153,8 +152,8 @@ impl Constrains {
     }
 }
 
-impl Assigments {
-    pub fn new(assigments: &[Assigment]) -> Self {
+impl<F: Field> Assigments<F> {
+    pub fn new(assigments: &[Assigment<F>]) -> Self {
         Self {
             a: assigments.iter().map(|v| v.a).collect(),
             b: assigments.iter().map(|v| v.b).collect(),

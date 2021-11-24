@@ -1,27 +1,24 @@
-#!allow[(unused_imports, dead_code)]
-
 use std::{
     fmt::Display,
     ops::{Add, Index, IndexMut, Mul},
 };
 
-use super::field::Field;
-use super::poly::Poly;
+use super::{ec::Field, poly::Poly};
 
 #[derive(Debug, PartialEq, Clone)]
-pub struct Matrix<const M: u64> {
+pub struct Matrix<F: Field> {
     m: usize, // rows
     n: usize, // cols
-    v: Vec<Field<M>>,
+    v: Vec<F>,
 }
 
-impl<const M: u64> Matrix<M> {
+impl<F: Field> Matrix<F> {
     pub fn zero(m: usize, n: usize) -> Self {
         let mut v = Vec::new();
-        v.resize(n * m, Field::<M>::from(0));
+        v.resize(n * m, F::zero());
         Self { m, n, v }
     }
-    pub fn new(v: &[Field<M>], m: usize, n: usize) -> Self {
+    pub fn new(v: &[F], m: usize, n: usize) -> Self {
         assert_eq!(v.len(), m * n);
         Matrix {
             m,
@@ -35,7 +32,7 @@ impl<const M: u64> Matrix<M> {
         Matrix {
             m,
             n,
-            v: v.iter().map(|x| Field::<M>::from(*x)).collect(),
+            v: v.iter().map(|x| F::from(*x)).collect(),
         }
     }
     pub fn cols(&self) -> usize {
@@ -44,7 +41,7 @@ impl<const M: u64> Matrix<M> {
     pub fn rows(&self) -> usize {
         self.m
     }
-    pub fn inv(&self) -> Matrix<M> {
+    pub fn inv(&self) -> Self {
         let len = self.n;
         let mut aug = Matrix::zero(len, len * 2);
         for i in 0..len {
@@ -65,7 +62,6 @@ impl<const M: u64> Matrix<M> {
         unaug
     }
 
-    //Begin Generalised Reduced Row Echelon Form
     fn gauss_jordan_general(&mut self) {
         let mut lead = 0;
         let row_count = self.m;
@@ -77,10 +73,10 @@ impl<const M: u64> Matrix<M> {
             }
             let mut i = r;
             while self[(i, lead)] == Field::zero() {
-                i = i + 1;
+                i += 1;
                 if row_count == i {
                     i = r;
-                    lead = lead + 1;
+                    lead += 1;
                     if col_count == lead {
                         break;
                     }
@@ -107,17 +103,17 @@ impl<const M: u64> Matrix<M> {
                     }
                 }
             }
-            lead = lead + 1;
+            lead += 1;
         }
     }
-    pub fn into_poly(self) -> Poly<M> {
+    pub fn into_poly(self) -> Poly<F> {
         assert_eq!(1, self.n);
         Poly::new(self.v)
     }
 }
 
-impl<const M: u64> Index<(usize, usize)> for Matrix<M> {
-    type Output = Field<M>;
+impl<F: Field> Index<(usize, usize)> for Matrix<F> {
+    type Output = F;
     // row, column
     fn index(&self, p: (usize, usize)) -> &Self::Output {
         assert!(p.0 < self.m && p.1 < self.n);
@@ -125,29 +121,29 @@ impl<const M: u64> Index<(usize, usize)> for Matrix<M> {
     }
 }
 
-impl<const M: u64> IndexMut<(usize, usize)> for Matrix<M> {
+impl<F: Field> IndexMut<(usize, usize)> for Matrix<F> {
     fn index_mut(&mut self, p: (usize, usize)) -> &mut Self::Output {
         assert!(p.0 < self.m && p.1 < self.n);
         &mut self.v[p.1 + p.0 * self.n]
     }
 }
 
-impl<const M: u64> Mul<Matrix<M>> for Matrix<M> {
-    type Output = Matrix<M>;
-    fn mul(self, rhs: Matrix<M>) -> Self::Output {
+impl<F: Field> Mul<Matrix<F>> for Matrix<F> {
+    type Output = Matrix<F>;
+    fn mul(self, rhs: Matrix<F>) -> Self::Output {
         &self * rhs
     }
 }
 
-impl<const M: u64> Mul<Matrix<M>> for &Matrix<M> {
-    type Output = Matrix<M>;
-    fn mul(self, rhs: Matrix<M>) -> Self::Output {
+impl<F: Field> Mul<Matrix<F>> for &Matrix<F> {
+    type Output = Matrix<F>;
+    fn mul(self, rhs: Matrix<F>) -> Self::Output {
         assert!(self.n == rhs.m);
         let mut c = Matrix::zero(self.m, rhs.n);
         for i in 0..self.m {
             for j in 0..rhs.n {
                 for k in 0..self.n {
-                    c[(i, j)] = c[(i, j)] + self[(i, k)] * rhs[(k, j)];
+                    c[(i, j)] += self[(i, k)] * rhs[(k, j)];
                 }
             }
         }
@@ -155,9 +151,9 @@ impl<const M: u64> Mul<Matrix<M>> for &Matrix<M> {
     }
 }
 
-impl<const M: u64> Add<Matrix<M>> for Matrix<M> {
-    type Output = Matrix<M>;
-    fn add(self, rhs: Matrix<M>) -> Self::Output {
+impl<F: Field> Add<Matrix<F>> for Matrix<F> {
+    type Output = Matrix<F>;
+    fn add(self, rhs: Matrix<F>) -> Self::Output {
         assert!(self.m == rhs.m);
         assert!(self.n == rhs.n);
         let mut c = Matrix::zero(self.m, self.n);
@@ -168,7 +164,7 @@ impl<const M: u64> Add<Matrix<M>> for Matrix<M> {
     }
 }
 
-impl<const M: u64> Display for Matrix<M> {
+impl<F: Field> Display for Matrix<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         writeln!(f, "{}x{}", self.m, self.n)?;
         for r in 0..self.m {
@@ -185,8 +181,9 @@ impl<const M: u64> Display for Matrix<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    type F = Field<104729>;
-    type M = Matrix<104729>;
+    use crate::utils::U64Field;
+    type F = U64Field<104729>;
+    type M = Matrix<F>;
     #[test]
     fn test_sum_matrix() {
         assert_eq!(
@@ -198,7 +195,7 @@ mod tests {
     fn test_index_matrix() {
         let m = M::from(&[1, 2, 3, 4], 2, 2);
         // row 0 column 1
-        assert_eq!(m[(0, 1)], F::from(2));
+        assert_eq!(m[(0, 1)], F::from(2u64));
     }
     #[test]
     fn test_mul_matrix() {
