@@ -20,7 +20,7 @@ pub struct PlonkByHandTypes {}
 impl PlonkTypes for PlonkByHandTypes {
     type G1 = g1::G1P;
     type G2 = g2::G2P;
-    type GT = g2::G2P;
+    type GT = gt::GTP;
     type E = pairing::PBHPairing;
     type GF = F101;
     type SF = F17;

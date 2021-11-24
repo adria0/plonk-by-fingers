@@ -116,8 +116,5 @@ mod tests {
 
         // check point multiplication
         assert_eq!(g * f101(6), g + g + g + g + g + g);
-
-        // check G2 multiplication
-        assert_eq!(g2f(26, 97) * g2f(93, 76), g2f(97, 89));
     }
 }

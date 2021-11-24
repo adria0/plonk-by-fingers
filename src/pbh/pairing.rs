@@ -1,17 +1,13 @@
 #![allow(clippy::many_single_char_names)]
 
-use super::{
-    f101,
-    g1::G1P,
-    g2::{g2f, G2P},
-};
+use super::{f101, g1::G1P, g2::G2P, gt::GTP};
 use crate::ec::{Field, G1Point, G2Point, GTPoint, Pairing};
 
 pub struct PBHPairing {}
 impl Pairing for PBHPairing {
     type G1 = G1P;
     type G2 = G2P;
-    type GT = G2P;
+    type GT = GTP;
 
     fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
         let p = <G1P as G1Point>::F::order();
@@ -24,7 +20,7 @@ impl Pairing for PBHPairing {
     }
 }
 
-fn pairing_f(r: u64, p: G1P, q: G2P) -> G2P {
+fn pairing_f(r: u64, p: G1P, q: G2P) -> GTP {
     // line equation from a to b point
     let l = |a: G1P, b: G1P| {
         let m = b.x - a.x;
@@ -38,15 +34,15 @@ fn pairing_f(r: u64, p: G1P, q: G2P) -> G2P {
     };
 
     if r == 1 {
-        g2f(1, 0)
+        GTP::new(f101(1), f101(0))
     } else if r % 2 == 1 {
         let r = r - 1;
         let (x, y, c) = l(p * f101(r), p);
-        pairing_f(r, p, q) * G2P::new(q.a * x + c, q.b * y)
+        pairing_f(r, p, q) * GTP::new(q.a * x + c, q.b * y)
     } else {
         let r = r / 2;
         let (x, y, c) = l(p * f101(r), -p * f101(r) * f101(2));
-        pairing_f(r, p, q).pow(2) * G2P::new(q.a * x + c, q.b * y)
+        pairing_f(r, p, q).pow(2) * GTP::new(q.a * x + c, q.b * y)
     }
 }
 
@@ -59,6 +55,7 @@ mod tests {
     #[test]
     fn test_parings() {
         let p = G1P::generator().mul(f101(1));
+        let r = G1P::generator().mul(f101(4));
         let q = G2P::generator().mul(f101(3));
         let a = f101(5);
 
@@ -72,8 +69,8 @@ mod tests {
 
         assert_eq!(ê(p * a, q), ê(p, q).pow(a.as_u64()));
 
-        // ê(aP,Q) = ê((a-1)p,Q) * ê(P,Q)
+        // ê(P+R,Q) = ê(P,Q) * ê(R,Q)
 
-        assert_eq!(ê(p * a, q), ê(p * (a - f101(1)), q) * ê(p, q));
+        assert_eq!(ê(p + r, q), ê(p, q) * ê(r, q));
     }
 }
