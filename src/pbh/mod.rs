@@ -6,13 +6,13 @@ pub mod pairing;
 use crate::{ec::Field, plonk::PlonkTypes, utils::U64Field};
 
 pub type F101 = U64Field<101>;
-pub fn f101(x: u64) -> F101 {
-    F101::from(x)
+pub const fn f101(x: u64) -> F101 {
+    U64Field::<101>(x%101)
 }
 
 pub type F17 = U64Field<17>;
-pub fn f17(x: u64) -> F17 {
-    F17::from(x)
+pub const fn f17(x: u64) -> F17 {
+    U64Field::<17>(x%17)
 }
 
 #[derive(Debug, PartialEq)]
@@ -24,7 +24,9 @@ impl PlonkTypes for PlonkByHandTypes {
     type E = pairing::PBHPairing;
     type GF = F101;
     type SF = F17;
-
+    const K1 : Self::SF = f17(2);
+    const K2 : Self::SF = f17(3);
+    const OMEGA : Self::SF = f17(4);
     fn gf(sg: F17) -> F101 {
         F101::from(sg.as_u64())
     }
@@ -47,10 +49,7 @@ mod tests {
 
         let plonk = Plonk::new(
             srs,
-            f17(4), // omega
-            4,      // omega pows
-            f17(2), // k1
-            f17(3), // k1
+            4      // omega pows
         );
 
         // constraints and assigments

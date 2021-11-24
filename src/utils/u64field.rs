@@ -25,7 +25,7 @@ fn extended_gcd(a: i64, b: i64) -> (i64, i64, i64) {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct U64Field<const M: u64>(u64);
+pub struct U64Field<const M: u64>(pub(crate) u64);
 
 #[allow(non_snake_case)]
 impl<const M: u64> Field for U64Field<M> {

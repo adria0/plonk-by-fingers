@@ -19,6 +19,9 @@ pub trait PlonkTypes: PartialEq {
     type G2: G2Point<S = Self::GF>;
     type GT: GTPoint;
     type E: Pairing<G1 = Self::G1, G2 = Self::G2, GT = Self::GT>;
+    const K1 : Self::SF;
+    const K2 : Self::SF;
+    const OMEGA: Self::SF; 
     fn gf(sf: Self::SF) -> Self::GF;
 }
 
@@ -85,22 +88,19 @@ pub struct Challange<P: PlonkTypes> {
 
 pub struct Plonk<P: PlonkTypes> {
     srs: SRS<P>,
-    omega: P::SF,
     h: Vec<P::SF>,
     h_pows_inv: Matrix<P::SF>,
-    k1: P::SF,
-    k2: P::SF,
     k1_h: Vec<P::SF>,
     k2_h: Vec<P::SF>,
     z_h_x: Poly<P::SF>,
 }
 
 impl<P: PlonkTypes> Plonk<P> {
-    pub fn new(srs: SRS<P>, omega: P::SF, omega_pows: usize, k1: P::SF, k2: P::SF) -> Self {
+    pub fn new(srs: SRS<P>, omega_pows: usize) -> Self {
         // This roots of unity should be able to be generated through a generator
         // So the generator (called omega) creates these roots of unity (H)
 
-        let h: Vec<_> = (0..omega_pows).map(|n| omega.pow(n as u64)).collect();
+        let h: Vec<_> = (0..omega_pows).map(|n| P::OMEGA.pow(n as u64)).collect();
 
         // We need to label all of the values in our assignment with different field elements.
         // To do this, will use the roots of unity H along with two cosets of H.
@@ -109,13 +109,13 @@ impl<P: PlonkTypes> Plonk<P> {
         // neither an element of H nor $k_1H$. This ensures we have all the field elements to use as labels.
         // $H$ will be used to index $a$ values, $k_1H$ for $b$ values, $k_2H$ for $cC values
 
-        assert!(!h.contains(&k1));
-        assert!(!h.contains(&k2));
+        assert!(!h.contains(&P::K1));
+        assert!(!h.contains(&P::K2));
 
-        let k1_h: Vec<_> = h.iter().map(|r| *r * k1).collect(); // k1_h is a coset of H
+        let k1_h: Vec<_> = h.iter().map(|r| *r * P::K1).collect(); // k1_h is a coset of H
 
-        assert!(!k1_h.contains(&k2));
-        let k2_h: Vec<_> = h.iter().map(|r| *r * k2).collect(); // k2_h is a coset of H
+        assert!(!k1_h.contains(&P::K2));
+        let k2_h: Vec<_> = h.iter().map(|r| *r * P::K2).collect(); // k2_h is a coset of H
 
         // In some point we will want to build polinomials that evaluates with specific values
         // at the roots of unity, for instance at the $a$ values:
@@ -145,11 +145,8 @@ impl<P: PlonkTypes> Plonk<P> {
 
         Plonk {
             srs,
-            omega,
             h,
             h_pows_inv,
-            k1,
-            k2,
             k1_h,
             k2_h,
             z_h_x,
@@ -192,6 +189,8 @@ impl<P: PlonkTypes> Plonk<P> {
             z,
             v,
         } = challange;
+        let (omega, k1, k2 ) = (P::OMEGA, P::K1, P::K2);
+
 
         let n = constraints.c_a.len() as u64;
 
@@ -257,12 +256,12 @@ impl<P: PlonkTypes> Plonk<P> {
             let c = assigments.c[i - 1];
 
             // omega_pow is the root of unity
-            let omega_pow = self.omega.pow((i as u64) - 1);
+            let omega_pow = omega.pow((i as u64) - 1);
 
             // combine each wire value with its index position
             let dend = (a + *beta * omega_pow + gamma)
-                * (b + *beta * self.k1 * omega_pow + gamma)
-                * (c + *beta * self.k2 * omega_pow + gamma);
+                * (b + *beta * k1 * omega_pow + gamma)
+                * (c + *beta * k2 * omega_pow + gamma);
 
             // combine each wire value with its *permuted* index position
             let dsor = (a + *beta * s_sigma_1.eval(&omega_pow) + gamma)
@@ -311,13 +310,13 @@ impl<P: PlonkTypes> Plonk<P> {
         let b_x_q_r_x = &b_x * &q_r_x;
         let c_x_q_o_x = &c_x * &q_o_x;
         let alpha_a_x_beta_x_gamma = &(&a_x + &Poly::new(vec![*gamma, *beta])) * alpha;
-        let b_x_beta_k1_x_gamma = &b_x + &Poly::new(vec![*gamma, *beta * self.k1]);
-        let c_x_beta_k2_x_gamma = &c_x + &Poly::new(vec![*gamma, *beta * self.k2]);
+        let b_x_beta_k1_x_gamma = &b_x + &Poly::new(vec![*gamma, *beta * k1]);
+        let c_x_beta_k2_x_gamma = &c_x + &Poly::new(vec![*gamma, *beta * k2]);
         let z_omega_x = Poly::new(
             z_x.coeffs()
                 .iter()
                 .enumerate()
-                .map(|(n, c)| *c * self.omega.pow(n as u64))
+                .map(|(n, c)| *c * omega.pow(n as u64))
                 .collect::<Vec<_>>(),
         );
         let alpha_a_x_beta_s_sigma1_x_gamma = (&a_x + &s_sigma_1 * beta + gamma) * alpha;
@@ -377,8 +376,8 @@ impl<P: PlonkTypes> Plonk<P> {
         let r_1_x = a_z_b_z_q_m_x + a_z_q_l_x + b_z_q_r_x + c_z_q_o_x + q_c_x;
         let r_2_x = &z_x
             * ((a_z + *beta * z + gamma)
-                * (b_z + *beta * self.k1 * z + gamma)
-                * (c_z + *beta * self.k2 * z + gamma)
+                * (b_z + *beta * k1 * z + gamma)
+                * (c_z + *beta * k2 * z + gamma)
                 * alpha);
 
         let r_3_x = &z_x
@@ -409,7 +408,7 @@ impl<P: PlonkTypes> Plonk<P> {
 
         // compute opening proof polinomial w_zw_x
         let (w_z_omega_x, rem) =
-            (z_x - z_omega_z) / Poly::new(vec![-*z * self.omega, P::SF::one()]);
+            (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::SF::one()]);
         assert_eq!(rem, Poly::zero());
 
         // compute opening proof polinomials at s
@@ -469,6 +468,8 @@ impl<P: PlonkTypes> Plonk<P> {
             z,
             v,
         } = challange;
+
+        let (omega, k1, k2 ) = (P::OMEGA, P::K1, P::K2);
 
         // verifier preprocessing
         // ---------------------------------------------------------------------------
@@ -558,8 +559,8 @@ impl<P: PlonkTypes> Plonk<P> {
         let d_2_s = *z_s
             * P::gf(
                 (*a_z + *beta * z + gamma)
-                    * (*b_z + *beta * self.k1 * z + gamma)
-                    * (*c_z + *beta * self.k2 * z + gamma)
+                    * (*b_z + *beta * k1 * z + gamma)
+                    * (*c_z + *beta * k2 * z + gamma)
                     * alpha
                     * v
                     + l_1_z * alpha.pow(2) * v
@@ -609,7 +610,7 @@ impl<P: PlonkTypes> Plonk<P> {
 
         let e_1_q1 = *w_z_s + *w_z_omega_s * P::gf(u);
         let e_1_q2 = self.srs.g2_s;
-        let e_2_q1 = *w_z_s * P::gf(*z) + *w_z_omega_s * P::gf(u * z * self.omega) + f_s + -e_s;
+        let e_2_q1 = *w_z_s * P::gf(*z) + *w_z_omega_s * P::gf(u * z * omega) + f_s + -e_s;
         let e_2_q2 = self.srs.g2_1;
 
         let e_1 = P::E::pairing(e_1_q1, e_1_q2);
