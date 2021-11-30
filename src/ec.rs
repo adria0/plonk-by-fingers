@@ -38,6 +38,7 @@ pub trait Field:
     fn as_poly(&self) -> Poly<Self> {
         Poly::new(vec![*self])
     }
+    fn carrying_mul(&self, rhs: &Self, carry: &mut Self) -> Self;
 }
 
 pub trait G1Point:

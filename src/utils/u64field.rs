@@ -73,6 +73,13 @@ impl<const M: u64> Field for U64Field<M> {
         }
         result
     }
+    fn carrying_mul(&self, rhs: &Self, carry: &mut Self) -> Self {
+        let r = self.0 as u128 * rhs.0 as u128 + carry.0 as u128;
+
+        *carry = Self((r / M as u128) as u64);
+
+        Self((r % M as u128) as u64)
+    }
 }
 
 impl<const M: u64> From<i64> for U64Field<M> {

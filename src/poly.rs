@@ -1,7 +1,10 @@
 pub use crate::ec::Field;
+pub use crate::matrix::Matrix;
+pub use anyhow::anyhow;
+use std::convert::TryFrom;
 use std::{
     cmp::max,
-    fmt::{Display, Formatter, Result},
+    fmt::{Display, Formatter},
     iter,
     ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
 };
@@ -24,6 +27,9 @@ impl<F: Field> Poly<F> {
     }
     pub fn coeffs(&self) -> &[F] {
         &self.0
+    }
+    pub fn into_coeffs(self) -> Vec<F> {
+        self.0
     }
     /// Returns p(x)=0
     pub fn zero() -> Self {
@@ -119,7 +125,7 @@ impl<F: Field> Poly<F> {
 }
 
 impl<F: Field> Display for Poly<F> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut first: bool = true;
         for i in 0..=self.degree() {
             if self.0[i].is_zero() && self.degree() > 1 {
@@ -141,6 +147,17 @@ impl<F: Field> Display for Poly<F> {
             first = false;
         }
         Ok(())
+    }
+}
+
+impl<F: Field> TryFrom<Matrix<F>> for Poly<F> {
+    type Error = anyhow::Error;
+    fn try_from(matrix: Matrix<F>) -> Result<Self, Self::Error> {
+        if matrix.cols() == 1 {
+            Ok(Poly::new(matrix.into()))
+        } else {
+            Err(anyhow!("only one row"))
+        }
     }
 }
 
@@ -188,9 +205,7 @@ impl<F: Field> SubAssign<&Poly<F>> for Poly<F> {
 impl<F: Field> Mul<&Poly<F>> for &Poly<F> {
     type Output = Poly<F>;
     fn mul(self, rhs: &Poly<F>) -> Self::Output {
-        let mut mul: Vec<F> = iter::repeat(F::zero())
-            .take(self.0.len() + rhs.0.len() - 1)
-            .collect();
+        let mut mul = vec![F::zero(); self.0.len() + rhs.0.len()];
         for n in 0..self.0.len() {
             for m in 0..rhs.0.len() {
                 mul[n + m] += self.0[n] * rhs.0[m];

@@ -1,9 +1,9 @@
+use super::{ec::Field, poly::Poly};
+use std::convert::TryInto;
 use std::{
     fmt::Display,
     ops::{Add, Index, IndexMut, Mul},
 };
-
-use super::{ec::Field, poly::Poly};
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Matrix<F: Field> {
@@ -18,13 +18,9 @@ impl<F: Field> Matrix<F> {
         v.resize(n * m, F::zero());
         Self { m, n, v }
     }
-    pub fn new(v: &[F], m: usize, n: usize) -> Self {
+    pub fn new(v: Vec<F>, m: usize, n: usize) -> Self {
         assert_eq!(v.len(), m * n);
-        Matrix {
-            m,
-            n,
-            v: v.to_owned(),
-        }
+        Matrix { m, n, v }
     }
 
     pub fn from(v: &[u64], m: usize, n: usize) -> Self {
@@ -106,10 +102,6 @@ impl<F: Field> Matrix<F> {
             lead += 1;
         }
     }
-    pub fn into_poly(self) -> Poly<F> {
-        assert_eq!(1, self.n);
-        Poly::new(self.v)
-    }
 }
 
 impl<F: Field> Index<(usize, usize)> for Matrix<F> {
@@ -131,14 +123,15 @@ impl<F: Field> IndexMut<(usize, usize)> for Matrix<F> {
 impl<F: Field> Mul<Matrix<F>> for Matrix<F> {
     type Output = Matrix<F>;
     fn mul(self, rhs: Matrix<F>) -> Self::Output {
-        &self * rhs
+        &self * &rhs
     }
 }
 
-impl<F: Field> Mul<Matrix<F>> for &Matrix<F> {
+impl<F: Field> Mul<&Matrix<F>> for &Matrix<F> {
     type Output = Matrix<F>;
-    fn mul(self, rhs: Matrix<F>) -> Self::Output {
+    fn mul(self, rhs: &Matrix<F>) -> Self::Output {
         assert!(self.n == rhs.m);
+
         let mut c = Matrix::zero(self.m, rhs.n);
         for i in 0..self.m {
             for j in 0..rhs.n {
@@ -148,6 +141,16 @@ impl<F: Field> Mul<Matrix<F>> for &Matrix<F> {
             }
         }
         c
+    }
+}
+
+impl<F: Field> Mul<Poly<F>> for &Matrix<F> {
+    type Output = Poly<F>;
+    fn mul(self, rhs: Poly<F>) -> Self::Output {
+        let mut coeffs = rhs.into_coeffs();
+        coeffs.extend(vec![F::zero(); self.m - coeffs.len()]);
+        let this: Matrix<F> = Matrix::new(coeffs, self.m, 1);
+        (self * &this).try_into().expect("does not fail. qed")
     }
 }
 
@@ -175,6 +178,18 @@ impl<F: Field> Display for Matrix<F> {
             writeln!(f, "{}]", self[(r, self.n - 1)])?;
         }
         Ok(())
+    }
+}
+
+impl<F: Field> From<Poly<F>> for Matrix<F> {
+    fn from(poly: Poly<F>) -> Self {
+        Matrix::new(poly.coeffs().to_vec(), poly.coeffs().len(), 1)
+    }
+}
+
+impl<F: Field> Into<Vec<F>> for Matrix<F> {
+    fn into(self) -> Vec<F> {
+        self.v
     }
 }
 

@@ -19,9 +19,9 @@ pub trait PlonkTypes: PartialEq {
     type G2: G2Point<S = Self::GF>;
     type GT: GTPoint;
     type E: Pairing<G1 = Self::G1, G2 = Self::G2, GT = Self::GT>;
-    const K1 : Self::SF;
-    const K2 : Self::SF;
-    const OMEGA: Self::SF; 
+    const K1: Self::SF;
+    const K2: Self::SF;
+    const OMEGA: Self::SF;
     fn gf(sf: Self::SF) -> Self::GF;
 }
 
@@ -153,7 +153,9 @@ impl<P: PlonkTypes> Plonk<P> {
         }
     }
     fn interpolate(&self, vv: &[P::SF]) -> Poly<P::SF> {
-        (&self.h_pows_inv * Matrix::<_>::new(vv, vv.len(), 1)).into_poly()
+        println!("interpolate.a={}", self.h_pows_inv);
+        println!("interpolate.b={:?}", vv);
+        &self.h_pows_inv * Poly::new(vv.to_vec())
     }
     fn copy_constraints_to_roots(&self, c: &[CopyOf]) -> Vec<P::SF> {
         c.iter()
@@ -189,8 +191,7 @@ impl<P: PlonkTypes> Plonk<P> {
             z,
             v,
         } = challange;
-        let (omega, k1, k2 ) = (P::OMEGA, P::K1, P::K2);
-
+        let (omega, k1, k2) = (P::OMEGA, P::K1, P::K2);
 
         let n = constraints.c_a.len() as u64;
 
@@ -407,8 +408,7 @@ impl<P: PlonkTypes> Plonk<P> {
         assert_eq!(rem, Poly::zero());
 
         // compute opening proof polinomial w_zw_x
-        let (w_z_omega_x, rem) =
-            (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::SF::one()]);
+        let (w_z_omega_x, rem) = (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::SF::one()]);
         assert_eq!(rem, Poly::zero());
 
         // compute opening proof polinomials at s
@@ -469,7 +469,7 @@ impl<P: PlonkTypes> Plonk<P> {
             v,
         } = challange;
 
-        let (omega, k1, k2 ) = (P::OMEGA, P::K1, P::K2);
+        let (omega, k1, k2) = (P::OMEGA, P::K1, P::K2);
 
         // verifier preprocessing
         // ---------------------------------------------------------------------------
