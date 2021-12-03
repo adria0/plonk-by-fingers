@@ -2,7 +2,7 @@ use crate::ec::Field;
 use crate::matrix::Matrix;
 use crate::poly::Poly;
 
-trait FFT<F: Field> {
+pub trait FFT<F: Field> {
     fn fft(&self, values: &[F]) -> Vec<F>;
     fn fft_inv(&self, freq: &[F]) -> Vec<F>;
 }
@@ -36,6 +36,37 @@ impl<F: Field> FFT<F> for VandermondeMatrix<F> {
     }
 }
 
+// FE > = (a_vals.len + b_vals.len)  x ((F-1)^2)/2
+// according https://stackoverflow.com/questions/52270320/implementing-fft-over-finite-fields
+pub fn mul_ntt<F: Field, FE: Field, FFTI: FFT<FE>>(
+    fft: FFTI,
+    a_vals: Vec<F>,
+    b_vals: Vec<F>,
+    f_to_fe: &dyn Fn(F) -> FE,
+    fe_to_f: &dyn Fn(FE) -> F,
+) -> Vec<F> {
+    let sum = a_vals.len() + b_vals.len();
+    let zero = FE::zero();
+
+    let mut a_vals: Vec<FE> = a_vals.into_iter().map(|v| f_to_fe(v)).collect();
+    let mut b_vals: Vec<FE> = b_vals.into_iter().map(|v| f_to_fe(v)).collect();
+    a_vals.extend(vec![FE::zero(); sum - a_vals.len()]);
+    b_vals.extend(vec![FE::zero(); sum - b_vals.len()]);
+
+    let a_freq = fft.fft(&a_vals);
+    let b_freq = fft.fft(&b_vals);
+
+    let mut c_freq = Vec::new();
+
+    for n in 0..a_freq.len() {
+        let l = a_freq.get(n).unwrap_or(&zero);
+        let r = b_freq.get(n).unwrap_or(&zero);
+        c_freq.push(*l * r);
+    }
+
+    fft.fft_inv(&c_freq).into_iter().map(|v| fe_to_f(v)).collect()
+}
+
 #[cfg(test)]
 mod test {
     use super::*;
@@ -43,7 +74,7 @@ mod test {
 
     #[test]
     fn test_fft() {
-        type F = U64Field::<337>;
+        type F = U64Field<337>;
         let domain = VandermondeMatrix::new(F::from(85u64), 8);
         let values = [3, 1, 4, 1, 5, 9, 2, 6].map(|x| F::from(x as u64));
         let current_freq = domain.fft(&values);
@@ -54,64 +85,21 @@ mod test {
         let current_values = domain.fft_inv(&current_freq);
         assert_eq!(&current_values, &values[..]);
     }
-    /*
+
     #[test]
     fn test_ffn_poly_mul() {
-        type F = U64Field<337>;
-        let zero = F::zero();
-        let domain = gen_domain(F::from(85u64));
+        type F = U64Field<31>;
+        type FE = U64Field<6737>;
+        let f_to_fe = &|v: F| FE::from(v.as_u64());
+        let fe_to_f = &|v: FE| F::from(v.as_u64() % 31);
 
-        let d = |l: &[F]| {
-            l.iter()
-                .map(|x| format!("{}", x))
-                .collect::<Vec<String>>()
-                .join(",")
-        };
+        let a: Vec<F> = [24, 12, 28, 8].iter().map(|x| F::from(*x as u64)).collect();
+        let b: Vec<F> = [4, 26, 29, 23].iter().map(|x| F::from(*x as u64)).collect();
+        let poly_c = Poly::new(a.clone()) * Poly::new(b.clone());
 
-        let mut a_vals = [1, 1].map(|x| F::from(x as u64)).to_vec();
-        let mut b_vals = [5, 11].map(|x| F::from(x as u64)).to_vec();
-        let sum = a_vals.len() + b_vals.len();
+        let domain = VandermondeMatrix::new(FE::from(5862u64), 8);
+        let ntt_c  = Poly::new(mul_ntt(domain, a, b, &f_to_fe, &fe_to_f));
 
-        let mp1 = crate::poly::Poly::new((&a_vals[..]).to_vec())
-            * crate::poly::Poly::new((&b_vals[..]).to_vec());
-
-        a_vals.extend(vec![F::zero(); sum - a_vals.len()]);
-        b_vals.extend(vec![F::zero(); sum - b_vals.len()]);
-
-        println!("a_vals={:?}", d(&a_vals));
-        println!("b_vals={:?}", d(&b_vals));
-
-        println!("domain = {:?}", d(&domain));
-
-        let a_freq = fft(&a_vals, &domain);
-        let b_freq = fft(&b_vals, &domain);
-
-        let mut c_freq = Vec::new();
-
-        println!("a_freq={:?}", d(&a_freq));
-        println!("b_freq={:?}", d(&b_freq));
-
-        for n in 0..a_freq.len() {
-            let l = a_freq.get(n).unwrap_or(&zero);
-            let r = b_freq.get(n).unwrap_or(&zero);
-
-            let mut carry = F::zero();
-            c_freq.push(l.carrying_mul(r, &mut carry));
-        }
-
-        println!("c_freq={:?}", d(&c_freq));
-        //assert!(carry.is_zero());
-
-        let c_vals = fft_inv(&c_freq, &domain);
-
-        let mp2 = crate::poly::Poly::new(c_vals);
-
-        let values = [3, 1, 4, 1, 5, 9, 2, 6].map(|x| F::from(x as u64));
-        println!(
-            "fft_with_matrix {}",
-            d(&fft_matrix(&values, F::from(85u64)))
-        );
-        println!("fft_with_split {}", d(&fft(&values, &domain)));
+        assert_eq!(poly_c, ntt_c);
     }
-    */
 }
