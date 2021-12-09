@@ -23,10 +23,10 @@ impl PlonkTypes for PlonkByHandTypes {
     type GT = gt::GTP;
     type E = pairing::PBHPairing;
     type GF = F101;
-    type SF = F17;
-    const K1: Self::SF = f17(2);
-    const K2: Self::SF = f17(3);
-    const OMEGA: Self::SF = f17(4);
+    type HF = F17;
+    const K1: Self::HF = f17(2);
+    const K2: Self::HF = f17(3);
+    const OMEGA: Self::HF = f17(4);
     fn gf(sg: F17) -> F101 {
         F101::from(sg.as_u64())
     }
@@ -48,7 +48,8 @@ mod tests {
         let srs = SRS::<PlonkByHandTypes>::create(s, 6);
 
         let plonk = Plonk::new(
-            srs, 4, // omega pows
+            srs,
+            f17(4), // omega pows
         );
 
         // constraints and assigments

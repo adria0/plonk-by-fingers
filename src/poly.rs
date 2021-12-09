@@ -5,7 +5,6 @@ use std::convert::TryFrom;
 use std::{
     cmp::max,
     fmt::{Display, Formatter},
-    iter,
     ops::{Add, AddAssign, Div, Mul, MulAssign, Sub, SubAssign},
 };
 
@@ -60,6 +59,7 @@ impl<F: Field> Poly<F> {
         }
         l
     }
+
     /// Creates a polinomial that has roots at the selected points (x-p_1)(x-p_2)...(x-p_n)
     pub fn z(points: &[F]) -> Self {
         points

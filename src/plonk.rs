@@ -13,16 +13,16 @@ use super::{
 };
 
 pub trait PlonkTypes: PartialEq {
-    type GF: Field;
-    type SF: Field;
+    type GF: Field; // The field with order that is the order of G1
+    type HF: Field; // The field with same size than H (OMEGA^|HF|==1)
     type G1: G1Point<S = Self::GF>;
     type G2: G2Point<S = Self::GF>;
     type GT: GTPoint;
     type E: Pairing<G1 = Self::G1, G2 = Self::G2, GT = Self::GT>;
-    const K1: Self::SF;
-    const K2: Self::SF;
-    const OMEGA: Self::SF;
-    fn gf(sf: Self::SF) -> Self::GF;
+    const K1: Self::HF; // <k1 x OMEGA> coset generator
+    const K2: Self::HF; // <K2 x OMEGA> coset generator
+    const OMEGA: Self::HF; // The generator in HF
+    fn gf(sf: Self::HF) -> Self::GF;
 }
 
 pub struct SRS<P: PlonkTypes> {
@@ -48,7 +48,7 @@ impl<P: PlonkTypes> SRS<P> {
     }
 
     // evaluate a polinomil at secret point s using SRS G1s
-    pub fn eval_at_s(&self, vs: &Poly<P::SF>) -> P::G1 {
+    pub fn eval_at_s(&self, vs: &Poly<P::HF>) -> P::G1 {
         vs.coeffs()
             .iter()
             .enumerate()
@@ -60,47 +60,68 @@ impl<P: PlonkTypes> SRS<P> {
 
 #[derive(Debug, PartialEq)]
 pub struct Proof<P: PlonkTypes> {
+    /// $a(s)$
     pub a_s: P::G1,
+    /// $b(s)$
     pub b_s: P::G1,
+    /// $c(s)$
     pub c_s: P::G1,
+    /// $z(s)$
     pub z_s: P::G1,
+    /// $t_lo(s)$
     pub t_lo_s: P::G1,
+    /// $t_mid(s)$
     pub t_mid_s: P::G1,
+    /// $t_hi(s)$
     pub t_hi_s: P::G1,
+    /// $w_{\mathfrak{Z}}(s)$
     pub w_z_s: P::G1,
+    /// $w_{\mathfrak{Z}\omega}(s)$
     pub w_z_omega_s: P::G1,
-    pub a_z: P::SF,
-    pub b_z: P::SF,
-    pub c_z: P::SF,
-    pub s_sigma_1_z: P::SF,
-    pub s_sigma_2_z: P::SF,
-    pub r_z: P::SF,
-    pub z_omega_z: P::SF,
+    /// $\bar a$
+    pub a_z: P::HF,
+    /// $\bar b$
+    pub b_z: P::HF,
+    /// $\bar c$
+    pub c_z: P::HF,
+    /// $\overline {s_{\sigma_1}}$
+    pub s_sigma_1_z: P::HF,
+    /// $\overline {s_{\sigma_1}}$
+    pub s_sigma_2_z: P::HF,
+    /// $\overline r$
+    pub r_z: P::HF,
+    /// see $\overline {z_\omega}$
+    pub z_omega_z: P::HF,
 }
 
 pub struct Challange<P: PlonkTypes> {
-    pub alpha: P::SF,
-    pub beta: P::SF,
-    pub gamma: P::SF,
-    pub z: P::SF,
-    pub v: P::SF,
+    /// $\alpha$
+    pub alpha: P::HF,
+    /// $\beta$
+    pub beta: P::HF,
+    /// $\gamma$
+    pub gamma: P::HF,
+    /// $\mathfrak{Z}$
+    pub z: P::HF,
+    /// $\mathfrak{v}$
+    pub v: P::HF,
 }
 
 pub struct Plonk<P: PlonkTypes> {
     srs: SRS<P>,
-    h: Vec<P::SF>,
-    h_pows_inv: Matrix<P::SF>,
-    k1_h: Vec<P::SF>,
-    k2_h: Vec<P::SF>,
-    z_h_x: Poly<P::SF>,
+    h: Vec<P::HF>,
+    h_pows_inv: Matrix<P::HF>,
+    k1_h: Vec<P::HF>,
+    k2_h: Vec<P::HF>,
+    z_h_x: Poly<P::HF>,
 }
 
 impl<P: PlonkTypes> Plonk<P> {
-    pub fn new(srs: SRS<P>, omega_pows: usize) -> Self {
+    pub fn new(srs: SRS<P>, omega_pows: P::HF) -> Self {
         // This roots of unity should be able to be generated through a generator
         // So the generator (called omega) creates these roots of unity (H)
 
-        let h: Vec<_> = (0..omega_pows).map(|n| P::OMEGA.pow(n as u64)).collect();
+        let h: Vec<_> = (0..omega_pows.as_u64()).map(|n| P::OMEGA.pow(n)).collect();
 
         // We need to label all of the values in our assignment with different field elements.
         // To do this, will use the roots of unity H along with two cosets of H.
@@ -129,7 +150,7 @@ impl<P: PlonkTypes> Plonk<P> {
         // that we want to interpolate are multiplied (as a row matrix) with the
         // interpolation matrix to get the interpolation polinomial.
 
-        let mut h_pows = Matrix::<P::SF>::zero(h.len(), h.len());
+        let mut h_pows = Matrix::<P::HF>::zero(h.len(), h.len());
         for c in 0..h_pows.cols() {
             for r in 0..h_pows.rows() {
                 h_pows[(r, c)] = h[r].pow(c as u64);
@@ -152,12 +173,12 @@ impl<P: PlonkTypes> Plonk<P> {
             z_h_x,
         }
     }
-    fn interpolate(&self, vv: &[P::SF]) -> Poly<P::SF> {
-        println!("interpolate.a={}", self.h_pows_inv);
-        println!("interpolate.b={:?}", vv);
+
+    fn interpolate_at_h(&self, vv: &[P::HF]) -> Poly<P::HF> {
         &self.h_pows_inv * Poly::new(vv.to_vec())
     }
-    fn copy_constraints_to_roots(&self, c: &[CopyOf]) -> Vec<P::SF> {
+
+    fn copy_constraints_to_roots(&self, c: &[CopyOf]) -> Vec<P::HF> {
         c.iter()
             .map(|c| match c {
                 CopyOf::A(n) => self.h[n - 1],
@@ -169,10 +190,10 @@ impl<P: PlonkTypes> Plonk<P> {
 
     pub fn prove(
         &self,
-        constraints: &Constrains<P::SF>,
-        assigments: &Assigments<P::SF>,
+        constraints: &Constrains<P::HF>,
+        assigments: &Assigments<P::HF>,
         challange: &Challange<P>,
-        rand: [P::SF; 9],
+        rand: [P::HF; 9],
     ) -> Proof<P> {
         // check that the constraints satisfies the assigments
         assert!(constraints.satisfies(assigments));
@@ -208,19 +229,18 @@ impl<P: PlonkTypes> Plonk<P> {
         //   (a,b,c)                  : assigments / values
         //   (o,m,l,r,c)              : gate constraints
         //   (sigma1, sigma2, sigma3) : copy constraints
-        // ---------------------------------------------------------------------------
 
-        let f_a_x = self.interpolate(&assigments.a);
-        let f_b_x = self.interpolate(&assigments.b);
-        let f_c_x = self.interpolate(&assigments.c);
-        let q_o_x = self.interpolate(&constraints.q_o);
-        let q_m_x = self.interpolate(&constraints.q_m);
-        let q_l_x = self.interpolate(&constraints.q_l);
-        let q_r_x = self.interpolate(&constraints.q_r);
-        let q_c_x = self.interpolate(&constraints.q_c);
-        let s_sigma_1 = self.interpolate(&sigma_1);
-        let s_sigma_2 = self.interpolate(&sigma_2);
-        let s_sigma_3 = self.interpolate(&sigma_3);
+        let f_a_x = self.interpolate_at_h(&assigments.a);
+        let f_b_x = self.interpolate_at_h(&assigments.b);
+        let f_c_x = self.interpolate_at_h(&assigments.c);
+        let q_o_x = self.interpolate_at_h(&constraints.q_o);
+        let q_m_x = self.interpolate_at_h(&constraints.q_m);
+        let q_l_x = self.interpolate_at_h(&constraints.q_l);
+        let q_r_x = self.interpolate_at_h(&constraints.q_r);
+        let q_c_x = self.interpolate_at_h(&constraints.q_c);
+        let s_sigma_1 = self.interpolate_at_h(&sigma_1);
+        let s_sigma_2 = self.interpolate_at_h(&sigma_2);
+        let s_sigma_3 = self.interpolate_at_h(&sigma_3);
 
         // round 1 - eval a(x), b(x), c(x) at s
         // ---------------------------------------------------------------------------
@@ -236,7 +256,7 @@ impl<P: PlonkTypes> Plonk<P> {
         let b_s = self.srs.eval_at_s(&b_x);
         let c_s = self.srs.eval_at_s(&c_x);
 
-        // round 2 - eval acummulator vector polinomial at s
+        // round 2 - eval "acummulator vector polynomial" at s
         // ---------------------------------------------------------------------------
         // check https://vitalik.ca/general/2019/09/22/plonk.html
         //
@@ -246,11 +266,16 @@ impl<P: PlonkTypes> Plonk<P> {
 
         let (b7, b8, b9) = (rand[6], rand[7], rand[8]);
 
-        // create the accumulator vector, it has the property that is going to have
-        // the same value than
+        // create the accumulator vector
         //
+        // we have to prove that the wires are the same that the permutation of the
+        // copy constrains one.
+        //
+        // beta       blinding against prover addition manipulation
+        // gamma      blinding against prover multiplication manipulation
+        // k1,k2      coset independance between a,b,c
 
-        let mut acc = vec![P::SF::one()];
+        let mut acc = vec![P::HF::one()];
         for i in 1..n as usize {
             let a = assigments.a[i - 1];
             let b = assigments.b[i - 1];
@@ -275,8 +300,11 @@ impl<P: PlonkTypes> Plonk<P> {
 
         // the accumulator vector is interpolated into a polynomial acc(x)
         // and this is used to create the polynomial z.
+        let acc_x = self.interpolate_at_h(&acc);
 
-        let acc_x = self.interpolate(&acc);
+        // we know that evaluating the accumulator polinimial at the last
+        // root of unity, the evaluation should be 1, check it
+        assert!(acc_x.eval(&omega.pow(n)) == P::HF::one());
 
         let z_x = Poly::new(vec![b9, b8, b7]) * &self.z_h_x + acc_x;
 
@@ -287,23 +315,25 @@ impl<P: PlonkTypes> Plonk<P> {
         // round 3 - compute the quotient polynomial
         // ---------------------------------------------------------------------------
         // Next comes the most massive computation of the entire protocol.
+        //
         // Our goal is to compute the polynomial t, which will be of degree 3n+5 for n gates.
         // The polynomial t encodes the majority of the information contained in our circuit
         // and assignments all at once.
 
         // L1 refers to a Lagrange basis polynomial over our roots of unity H.
         // Specifically L1(1)=1, but takes the value 0 on each of the other roots of unity.
+        //
         // The coefficients for L1 can be found by interpolating the vector
 
-        let lagrange_vector: Vec<_> = std::iter::once(P::SF::one())
-            .chain(std::iter::repeat(P::SF::zero()))
+        let lagrange_vector: Vec<_> = std::iter::once(P::HF::one())
+            .chain(std::iter::repeat(P::HF::zero()))
             .take(self.h.len())
             .collect();
 
-        let l_1_x = self.interpolate(&lagrange_vector);
+        let l_1_x = self.interpolate_at_h(&lagrange_vector);
 
         // public inputs
-        let p_i_x = P::SF::zero().as_poly(); // Public input
+        let p_i_x = Poly::zero(); // Public input
 
         // helper variables
         let a_x_b_x_q_m_x = (&a_x * &b_x) * &q_m_x;
@@ -323,7 +353,7 @@ impl<P: PlonkTypes> Plonk<P> {
         let alpha_a_x_beta_s_sigma1_x_gamma = (&a_x + &s_sigma_1 * beta + gamma) * alpha;
         let b_x_beta_s_sigma2_x_gamma = &b_x + &s_sigma_2 * beta + gamma;
         let c_x_beta_s_sigma3_x_gamma = &c_x + &s_sigma_3 * beta + gamma;
-        let alpha_2_z_x_1_l_1_x = ((&z_x + (-P::SF::one()).as_poly()) * alpha.pow(2)) * &l_1_x;
+        let alpha_2_z_x_1_l_1_x = ((&z_x + (-P::HF::one()).as_poly()) * alpha.pow(2)) * &l_1_x;
 
         // compute t(x)
 
@@ -404,11 +434,11 @@ impl<P: PlonkTypes> Plonk<P> {
             + (c_x - c_z) * v.pow(4)
             + (s_sigma_1 - s_sigma_1_z) * v.pow(5)
             + (s_sigma_2 - s_sigma_2_z) * v.pow(6);
-        let (w_z_x, rem) = w_z_x / Poly::new(vec![-*z, P::SF::one()]);
+        let (w_z_x, rem) = w_z_x / Poly::new(vec![-*z, P::HF::one()]);
         assert_eq!(rem, Poly::zero());
 
-        // compute opening proof polinomial w_zw_x
-        let (w_z_omega_x, rem) = (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::SF::one()]);
+        // compute opening proof polinomial w_zw_x, divide by (x - z*omega)
+        let (w_z_omega_x, rem) = (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::HF::one()]);
         assert_eq!(rem, Poly::zero());
 
         // compute opening proof polinomials at s
@@ -437,10 +467,10 @@ impl<P: PlonkTypes> Plonk<P> {
 
     pub fn verify(
         &self,
-        constraints: &Constrains<P::SF>,
+        constraints: &Constrains<P::HF>,
         proof: &Proof<P>,
         challange: &Challange<P>,
-        rand: [P::SF; 1],
+        rand: [P::HF; 1],
     ) -> bool {
         let Proof {
             a_s,
@@ -477,14 +507,14 @@ impl<P: PlonkTypes> Plonk<P> {
         let sigma_2 = self.copy_constraints_to_roots(&constraints.c_b);
         let sigma_3 = self.copy_constraints_to_roots(&constraints.c_c);
 
-        let q_m_s = self.srs.eval_at_s(&self.interpolate(&constraints.q_m));
-        let q_l_s = self.srs.eval_at_s(&self.interpolate(&constraints.q_l));
-        let q_r_s = self.srs.eval_at_s(&self.interpolate(&constraints.q_r));
-        let q_o_s = self.srs.eval_at_s(&self.interpolate(&constraints.q_o));
-        let q_c_s = self.srs.eval_at_s(&self.interpolate(&constraints.q_c));
-        let sigma_1_s = self.srs.eval_at_s(&self.interpolate(&sigma_1));
-        let sigma_2_s = self.srs.eval_at_s(&self.interpolate(&sigma_2));
-        let sigma_3_s = self.srs.eval_at_s(&self.interpolate(&sigma_3));
+        let q_m_s = self.srs.eval_at_s(&self.interpolate_at_h(&constraints.q_m));
+        let q_l_s = self.srs.eval_at_s(&self.interpolate_at_h(&constraints.q_l));
+        let q_r_s = self.srs.eval_at_s(&self.interpolate_at_h(&constraints.q_r));
+        let q_o_s = self.srs.eval_at_s(&self.interpolate_at_h(&constraints.q_o));
+        let q_c_s = self.srs.eval_at_s(&self.interpolate_at_h(&constraints.q_c));
+        let sigma_1_s = self.srs.eval_at_s(&self.interpolate_at_h(&sigma_1));
+        let sigma_2_s = self.srs.eval_at_s(&self.interpolate_at_h(&sigma_2));
+        let sigma_3_s = self.srs.eval_at_s(&self.interpolate_at_h(&sigma_3));
 
         let u = rand[0];
 
@@ -503,7 +533,7 @@ impl<P: PlonkTypes> Plonk<P> {
             return false;
         }
 
-        // Step 2. Validate proof fields in SF
+        // Step 2. Validate proof fields in HF
 
         if !a_z.in_field()
             || !b_z.in_field()
@@ -524,16 +554,16 @@ impl<P: PlonkTypes> Plonk<P> {
 
         // Step 5. Evaluate lagrange on z
 
-        let lagrange_vector: Vec<_> = std::iter::once(P::SF::one())
-            .chain(std::iter::repeat(P::SF::zero()))
+        let lagrange_vector: Vec<_> = std::iter::once(P::HF::one())
+            .chain(std::iter::repeat(P::HF::zero()))
             .take(self.h.len())
             .collect();
 
-        let l_1_z = self.interpolate(&lagrange_vector).eval(z);
+        let l_1_z = self.interpolate_at_h(&lagrange_vector).eval(z);
 
         // Step 6. We do not have public inputs, nothing to do
 
-        let p_i_z = P::SF::zero();
+        let p_i_z = P::HF::zero();
 
         // Step 7. Compute quotient polinomial evaluation
 
