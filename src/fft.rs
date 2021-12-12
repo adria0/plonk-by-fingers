@@ -104,22 +104,17 @@ fn cooley_tukey_fft<F: Field>(vals: &[&F], domain: &[&F]) -> Vec<F> {
     }
 }
 
-// FE > = (a_vals.len + b_vals.len)  x ((F-1)^2)/2
 // according https://stackoverflow.com/questions/52270320/implementing-fft-over-finite-fields
-pub fn mul_ntt<F: Field, FE: Field, FFTI: FFT<FE>>(
+pub fn mul_ntt<F: Field, FFTI: FFT<F>>(
     fft: FFTI,
-    a_vals: Vec<F>,
-    b_vals: Vec<F>,
-    f_to_fe: &dyn Fn(F) -> FE,
-    fe_to_f: &dyn Fn(FE) -> F,
+    mut a_vals: Vec<F>,
+    mut b_vals: Vec<F>,
 ) -> Vec<F> {
     let sum = a_vals.len() + b_vals.len();
-    let zero = FE::zero();
+    let zero = F::zero();
 
-    let mut a_vals: Vec<FE> = a_vals.into_iter().map(|v| f_to_fe(v)).collect();
-    let mut b_vals: Vec<FE> = b_vals.into_iter().map(|v| f_to_fe(v)).collect();
-    a_vals.extend(vec![FE::zero(); sum - a_vals.len()]);
-    b_vals.extend(vec![FE::zero(); sum - b_vals.len()]);
+    a_vals.extend(vec![F::zero(); sum - a_vals.len()]);
+    b_vals.extend(vec![F::zero(); sum - b_vals.len()]);
 
     let a_freq = fft.fft(&a_vals);
     let b_freq = fft.fft(&b_vals);
@@ -133,9 +128,6 @@ pub fn mul_ntt<F: Field, FE: Field, FFTI: FFT<FE>>(
     }
 
     fft.fft_inv(&c_freq)
-        .into_iter()
-        .map(|v| fe_to_f(v))
-        .collect()
 }
 
 #[cfg(test)]
@@ -173,22 +165,20 @@ mod test {
         let current_values = ct.fft_inv(&current_freq);
         assert_eq!(&current_values, &values[..]);
     }
-
+    
     #[test]
-    fn test_ffn_poly_mul() {
-        type F = U64Field<31>;
-        type FE = U64Field<6737>;
-        let f_to_fe = &|v: F| FE::from(v.as_u64());
-        let fe_to_f = &|v: FE| F::from(v.as_u64() % 31);
+    fn test_ntt_poly_mul() {
+        type F = U64Field<337>;
 
         let a: Vec<F> = [24, 12, 28, 8].iter().map(|x| F::from(*x as u64)).collect();
         let b: Vec<F> = [4, 26, 29, 23].iter().map(|x| F::from(*x as u64)).collect();
         let poly_c = Poly::new(a.clone()) * Poly::new(b.clone());
 
-        let ev = EvaluationDomainGenerator::new(FE::from(5862u64), 8);
+        let ev = EvaluationDomainGenerator::new(F::from(85u64), 8);
         let domain = CooleyTurkey::new(ev);
-        let ntt_c = Poly::new(mul_ntt(domain, a, b, &f_to_fe, &fe_to_f));
+        let ntt_c = Poly::new(mul_ntt(domain, a, b));
 
         assert_eq!(poly_c, ntt_c);
     }
+
 }
