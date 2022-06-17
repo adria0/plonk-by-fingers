@@ -1,3 +1,4 @@
+
 use crate::ec::Field;
 use crate::matrix::Matrix;
 use crate::poly::Poly;
@@ -165,7 +166,7 @@ mod test {
         let current_values = ct.fft_inv(&current_freq);
         assert_eq!(&current_values, &values[..]);
     }
-    
+
     #[test]
     fn test_ntt_poly_mul() {
         type F = U64Field<337>;
@@ -180,5 +181,4 @@ mod test {
 
         assert_eq!(poly_c, ntt_c);
     }
-
 }

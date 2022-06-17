@@ -375,6 +375,23 @@ impl<F: Field> Mul<F> for &Poly<F> {
     }
 }
 
+struct PolyFreq<F: Field>(Vec<F>);
+
+impl<F: Field> Mul for PolyFreq<F> {
+    type Output = PolyFreq<F>;
+    fn mul(self, rhs: PolyFreq<F>) -> Self::Output {
+        let zero = F::zero();
+        let mut c_freq = Vec::new();
+
+        for n in 0..self.0.len() {
+            let l = self.0.get(n).unwrap_or(&zero);
+            let r = rhs.0.get(n).unwrap_or(&zero);
+            c_freq.push(*l * r);
+        }
+        Self(c_freq)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
