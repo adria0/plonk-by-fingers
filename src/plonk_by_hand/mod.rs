@@ -1,9 +1,12 @@
+pub mod constraints;
 pub mod g1;
 pub mod g2;
 pub mod gt;
 pub mod pairing;
+pub mod plonk;
 
-use crate::{ec::Field, plonk::PlonkTypes, utils::U64Field};
+use crate::{ec::Field, utils::U64Field};
+use plonk::PlonkTypes;
 
 pub type F101 = U64Field<101>;
 pub const fn f101(x: u64) -> F101 {
@@ -35,11 +38,9 @@ impl PlonkTypes for PlonkByHandTypes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        constraints::{Assigment, Assigments, Constrains, CopyOf, Gate},
-        pbh::g1::g1f,
-        plonk::{Challange, Plonk, Proof, SRS},
-    };
+    use constraints::{Assigment, Assigments, Constrains, CopyOf, Gate};
+    use g1::g1f;
+    use plonk::{Challange, Plonk, Proof, SRS};
 
     #[test]
     fn test_plonk_gen_proof() {

@@ -5,12 +5,13 @@ use crate::{
     poly::Field,
 };
 
-use super::{
-    constraints::*,
+use crate::{
     ec::{G1Point, G2Point},
     matrix::Matrix,
     poly::Poly,
 };
+
+use super::constraints::*;
 
 pub trait PlonkTypes: PartialEq {
     type GF: Field; // The field with order that is the order of G1
@@ -162,7 +163,7 @@ impl<P: PlonkTypes> Plonk<P> {
         // The polynomial $Z_H$ is the polynomial that is zero on all the elements of
         // our subgroup $H$.
 
-        let z_h_x = Poly::z(&h);
+        let z_h_x = Poly::z(h.clone());
 
         Plonk {
             srs,
@@ -625,7 +626,7 @@ impl<P: PlonkTypes> Plonk<P> {
 
         // Step 10. Compute group encoded batch evaluation [E]
 
-        let e_s = self.srs.eval_at_s(&Poly::from(&[1]))
+        let e_s = self.srs.eval_at_s(&Poly::from([1]))
             * P::gf(
                 t_z + *v * r_z
                     + v.pow(2) * a_z

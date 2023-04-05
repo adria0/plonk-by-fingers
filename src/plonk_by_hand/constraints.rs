@@ -1,6 +1,6 @@
 #![allow(clippy::len_without_is_empty)]
 
-use super::ec::Field;
+use crate::ec::Field;
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -175,7 +175,7 @@ impl<F: Field> Constrains<F> {
                 n
             }
             Expression::Sum(e1, e2) => {
-                println!("-sum- [{}] [{}] ",e1,e2);
+                println!("-sum- [{}] [{}] ", e1, e2);
                 let l = Self::eval_exprs(e1.as_ref(), vars, gates);
                 let r = Self::eval_exprs(e2.as_ref(), vars, gates);
                 let n = vars.len();
@@ -252,15 +252,14 @@ pub enum Expression<F: Field> {
     Mul(Box<Expression<F>>, Box<Expression<F>>),
 }
 
-impl<F:Field> Display for Expression<F> {
+impl<F: Field> Display for Expression<F> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-
         match &self {
-            Expression::Var(s) => write!(f,"{}",s),
-            Expression::Const(v) => write!(f,"{}",v),
-            Expression::Sum(l,r) => write!(f,"({}+{})",l,r),
-            Expression::Sub(l,r) => write!(f,"({}-{})",l,r),
-            Expression::Mul(l,r) => write!(f,"({}*{})",l,r),
+            Expression::Var(s) => write!(f, "{}", s),
+            Expression::Const(v) => write!(f, "{}", v),
+            Expression::Sum(l, r) => write!(f, "({}+{})", l, r),
+            Expression::Sub(l, r) => write!(f, "({}-{})", l, r),
+            Expression::Mul(l, r) => write!(f, "({}*{})", l, r),
         }
     }
 }
@@ -289,7 +288,7 @@ impl<F: Field> std::ops::Mul for Expression<F> {
 #[ignore]
 #[test]
 fn test_expr() {
-    use super::utils::U64Field;
+    use crate::utils::U64Field;
     type F = U64Field<17>;
     let a = Expression::<F>::Var("a");
     let b = Expression::<F>::Var("b");
@@ -300,7 +299,7 @@ fn test_expr() {
     let mut vars: HashMap<String, usize> = HashMap::new();
     let mut gates: Vec<(Gate<F>, usize, usize, usize)> = Vec::new();
 
-    let r = Constrains::eval_exprs(&pitagoras, &mut vars, &mut gates);
+    let _r = Constrains::eval_exprs(&pitagoras, &mut vars, &mut gates);
     let mut vars_rev = HashMap::new();
     vars.iter().for_each(|(k, v)| {
         vars_rev.insert(*v, k);
@@ -309,7 +308,7 @@ fn test_expr() {
         .map(|n| format!("{}=>{} ", n, vars_rev[&n]))
         .collect();
 
-    println!("{}",n);
+    println!("{}", n);
     for gate in &gates {
         println!(
             "{}",
