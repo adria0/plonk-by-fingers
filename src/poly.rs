@@ -25,9 +25,15 @@ impl<F: Field> Poly<F> {
     pub fn from<I: IntoIterator<Item=i64>>(coeffs: I) -> Self {
         Poly::new(coeffs.into_iter().map(|n| F::from(n)).collect::<Vec<F>>())
     }
+
     // Returns the x polinomial
     pub fn x() -> Self {
         Poly::new(vec![F::zero(), F::one()])
+    }
+
+    // Returns the x^2 polinomial
+    pub fn x2() -> Self {
+        Poly::new(vec![F::zero(), F::zero(), F::one()])
     }
 
     // Returns a constant polinomial
@@ -149,6 +155,26 @@ impl<F: Field> Poly<F> {
             p_pow = p_pow * p;
         }
         res
+    }
+
+    /// Splits the polinomial between even and odd coeffinents
+    pub fn split(&self) -> (Poly<F>, Poly<F>) {
+        let even_coeffs =
+            self.coeffs()
+                .iter()
+                .enumerate()
+                .filter_map(|(i, n)| if i % 2 == 0 { Some(*n) } else { None });
+
+        let odd_coeffs =
+            self.coeffs()
+                .iter()
+                .enumerate()
+                .filter_map(|(i, n)| if i % 2 == 1 { Some(*n) } else { None });
+
+        let even = Poly::new(even_coeffs);
+        let odd = Poly::new(odd_coeffs);
+
+        (even, odd)
     }
 
     /// Pow
@@ -609,5 +635,19 @@ mod tests {
         check("2x", "2x");
         check("1+2x^3", "1+x+2x^2");
         check("x^2", "6+16x+2x^2+13x^3");
+    }
+
+    #[test]
+    fn test_split() {
+        // check that f(x) = even(x^2) + x * odd(x^2)
+
+        let f = Poly::<F>::parse("4+11x+9x^3+15x^4").unwrap();
+        let (even, odd) = f.split();
+        
+        assert_eq!(
+            f,
+            even.subst_x(&Poly::x2()) + Poly::x() * odd.subst_x(&Poly::x2())
+        );
+
     }
 }
