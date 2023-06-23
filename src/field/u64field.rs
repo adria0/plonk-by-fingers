@@ -1,10 +1,9 @@
-#![allow(clippy::many_single_char_names)]
-
-use crate::{ec::Field, poly::Poly};
+use crate::poly::Poly;
+use super::Field;
 
 use std::{
-    fmt::Display,
-    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
+    fmt::{Debug, Display},
+    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign}, borrow::Cow,
 };
 
 fn extended_gcd(a: i64, b: i64) -> (i64, i64, i64) {
@@ -80,10 +79,23 @@ impl<const M: u64> Field for U64Field<M> {
 
         Self((r % M as u128) as u64)
     }
+    fn le_bytes(&self) -> Cow<[u8]> {
+        Cow::Owned(self.0.to_le_bytes().to_vec())
+    }
 }
 
 impl<const M: u64> From<i64> for U64Field<M> {
     fn from(n: i64) -> Self {
+        if n < 0 {
+            -Self::from(-n as u64)
+        } else {
+            Self::from(n as u64)
+        }
+    }
+}
+
+impl<const M: u64> From<i32> for U64Field<M> {
+    fn from(n: i32) -> Self {
         if n < 0 {
             -Self::from(-n as u64)
         } else {

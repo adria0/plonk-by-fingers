@@ -1,10 +1,13 @@
 #![allow(dead_code)]
 
-use super::{f101, F101};
-use crate::ec::{Field, GTPoint};
+use crate::field::Field;
+use crate::pairing::GT;
 use std::fmt::Display;
 use std::ops::Mul;
 use std::ops::Neg;
+
+use super::types::F101;
+use super::types::f101;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct GTP {
@@ -28,7 +31,7 @@ impl Neg for GTP {
     }
 }
 
-impl GTPoint for GTP {
+impl GT for GTP {
     type S = u64;
     fn pow(&self, mut n: Self::S) -> Self {
         // frobenious map reduction: p^101 = -p

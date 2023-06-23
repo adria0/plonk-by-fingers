@@ -4,8 +4,9 @@ use std::{
     ops::{Add, Mul, Neg},
 };
 
-use super::{f101, F101};
-use crate::ec::{Field, G1Point};
+use crate::{field::Field, pairing::G1};
+
+use super::types::{F101, f101};
 
 #[allow(non_snake_case)]
 pub fn g1f(x: u64, y: u64) -> G1P {
@@ -47,7 +48,7 @@ pub struct G1P {
 ///
 /// Elliptic curves also have an abstract "point at infinity" which serves as the group identity. For more on elliptic curve arithmetic, check out [this post from Nick Sullivan](https://blog.cloudflare.com/a-relatively-easy-to-understand-primer-on-elliptic-curve-cryptography/)
 ///
-impl G1Point for G1P {
+impl G1 for G1P {
     type F = F101;
     type S = F101;
 
@@ -186,7 +187,7 @@ mod tests {
 
         // find subgroups
         let mut subgroups = std::collections::HashMap::new();
-        while points.len() > 0 {
+        while !points.is_empty() {
             let mut in_subgroup = Vec::new();
 
             // pick one element as a generator
@@ -222,8 +223,8 @@ mod tests {
         for (g, e) in &subgroups {
             println!("{} {}", g, e.len());
             if e.len() < 20 {
-                for n in 0..e.len() {
-                    println!("  {}", e[n]);
+                for n in e {
+                    println!("  {}", n);
                 }
             }
         }

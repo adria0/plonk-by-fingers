@@ -1,52 +1,22 @@
-pub mod constraints;
-pub mod g1;
-pub mod g2;
-pub mod gt;
-pub mod pairing;
-pub mod plonk;
 
-use crate::{ec::Field, utils::U64Field};
-use plonk::PlonkTypes;
-
-pub type F101 = U64Field<101>;
-pub const fn f101(x: u64) -> F101 {
-    U64Field::<101>(x % 101)
-}
-
-pub type F17 = U64Field<17>;
-pub const fn f17(x: u64) -> F17 {
-    U64Field::<17>(x % 17)
-}
-
-#[derive(Debug, PartialEq)]
-pub struct PlonkByHandTypes {}
-impl PlonkTypes for PlonkByHandTypes {
-    type G1 = g1::G1P;
-    type G2 = g2::G2P;
-    type GT = gt::GTP;
-    type E = pairing::PBHPairing;
-    type GF = F101;
-    type HF = F17;
-    const K1: Self::HF = f17(2);
-    const K2: Self::HF = f17(3);
-    const OMEGA: Self::HF = f17(4);
-    fn gf(sg: F17) -> F101 {
-        F101::from(sg.as_u64())
-    }
-}
+mod g1;
+mod g2;
+mod gt;
+mod pairing;
+mod types;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use constraints::{Assigment, Assigments, Constrains, CopyOf, Gate};
-    use g1::g1f;
-    use plonk::{Challange, Plonk, Proof, SRS};
+    use crate::plonk::plonk_by_hand::{types::{f101, PlonkByHandTypes, f17}, g1::g1f};
+
+    
+    use super::super::super::plonk::*;
 
     #[test]
     fn test_plonk_gen_proof() {
         // create the trusted setup
         let s = f101(2); // the toxic waste
-        let srs = SRS::<PlonkByHandTypes>::create(s, 6);
+        let srs = Srs::<PlonkByHandTypes>::create(s, 6);
 
         let plonk = Plonk::new(
             srs,

@@ -1,4 +1,4 @@
-pub use crate::ec::Field;
+pub use crate::field::Field;
 pub use crate::matrix::Matrix;
 pub use anyhow::{anyhow, bail, Result};
 use std::convert::TryFrom;
@@ -20,19 +20,28 @@ impl<F: Field> Poly<F> {
         poly
     }
 
-
     /// Creates a new polinomial where the `coeffs` fits in u64 values
     pub fn from<I: IntoIterator<Item=i64>>(coeffs: I) -> Self {
         Poly::new(coeffs.into_iter().map(|n| F::from(n)).collect::<Vec<F>>())
     }
+
+    pub fn mset<I: IntoIterator<Item=(usize,F)>>(coeffs: I) -> Self {
+        let mut poly = Poly::zero();
+        for (i,coeff) in coeffs {
+            poly = poly.set(i, coeff);
+        }
+        poly
+    }
+
+
     // Returns the x polinomial
     pub fn x() -> Self {
         Poly::new(vec![F::zero(), F::one()])
     }
 
     // Returns a constant polinomial
-    pub fn n(n: F) -> Self {
-        Poly::new(vec![n])
+    pub fn y(y: F) -> Self {
+        Poly::new(vec![y])
     }
 
     /// Parses an expression
@@ -40,16 +49,16 @@ impl<F: Field> Poly<F> {
         let orig = s;
         let mut coefficients = Vec::new();
         while !s.is_empty() {
-            let sign: i64 = if let Some(next) = s.strip_prefix("+") {
+            let sign: i64 = if let Some(next) = s.strip_prefix('+') {
                 s = next;
                 1
-            } else if let Some(next) = s.strip_prefix("-") {
+            } else if let Some(next) = s.strip_prefix('-') {
                 s = next;
                 -1
             } else {
                 1
             };
-            let expr = if let Some(next_pos) = s.find(&['-', '+']) {
+            let expr = if let Some(next_pos) = s.find(['-', '+']) {
                 let expr = &s[..next_pos];
                 s = &s[next_pos..];
                 expr
@@ -60,16 +69,16 @@ impl<F: Field> Poly<F> {
             };
             let (mut coeff, exp) = if let Some(xexpr) = expr.find("x^") {
                 (&expr[..xexpr], &expr[xexpr + 2..])
-            } else if let Some(xexpr) = expr.find("x") {
+            } else if let Some(xexpr) = expr.find('x') {
                 (&expr[..xexpr], "1")
             } else {
                 (expr, "0")
             };
-            if coeff.len() == 0 {
+            if coeff.is_empty() {
                 coeff = "1";
             }
-            let coeff = sign * i64::from_str_radix(coeff, 10).unwrap();
-            let exp = usize::from_str_radix(exp, 10).unwrap();
+            let coeff = sign * coeff.parse::<i64>().unwrap();
+            let exp = exp.parse::<usize>().unwrap();
             while coefficients.len() <= exp {
                 coefficients.push(0i64);
             }
@@ -141,7 +150,7 @@ impl<F: Field> Poly<F> {
     }
 
     /// Substitutes x with p(x)
-    pub fn subst_x(&self, p: &Poly<F>) -> Poly<F> {
+    pub fn compose(&self, p: &Poly<F>) -> Poly<F> {
         let mut res = Poly::new(vec![self.0[0]]);
         let mut p_pow = p.clone();
         for coeff in self.0.iter().skip(1) {
@@ -197,17 +206,33 @@ impl<F: Field> Poly<F> {
     }
 
     /// Sets the `i`-th coefficient to the selected `p` value
-    pub fn set(&mut self, i: usize, p: F) {
+    pub fn set(mut self, i: usize, p: F) -> Self{
         if self.0.len() < i + 1 {
             self.0.resize(i + 1, F::zero());
         }
         self.0[i] = p;
         self.normalize();
+        self
     }
 
     /// Returns the `i`-th coefficient
     pub fn get(&mut self, i: usize) -> Option<&F> {
         self.0.get(i)
+    }
+
+    /// Divides and returns the divison and remainder
+    fn div_rem(self, rhs: Poly<F>) -> (Self, Self) {
+        let (mut q, mut r) = (Poly::zero(), self);
+        while !r.is_zero() && r.degree() >= rhs.degree() {
+            let lead_r = r.0[r.0.len() - 1];
+            let lead_d = rhs.0[rhs.0.len() - 1].inv().unwrap();
+            let t = Poly::zero().set(r.0.len() - rhs.0.len(), lead_r * lead_d);
+            q += &t;
+            r -= &(&rhs * &t);
+        }
+        q.normalize();
+        r.normalize();
+        (q, r)
     }
 }
 
@@ -315,21 +340,12 @@ impl<F: Field> MulAssign<&F> for Poly<F> {
 }
 
 impl<F: Field> Div for Poly<F> {
-    type Output = (Poly<F>, Poly<F>);
+    type Output = Poly<F>;
 
     fn div(self, rhs: Poly<F>) -> Self::Output {
-        let (mut q, mut r) = (Poly::zero(), self);
-        while !r.is_zero() && r.degree() >= rhs.degree() {
-            let lead_r = r.0[r.0.len() - 1];
-            let lead_d = rhs.0[rhs.0.len() - 1];
-            let mut t = Poly::zero();
-            t.set(r.0.len() - rhs.0.len(), lead_r * lead_d.inv().unwrap());
-            q += &t;
-            r -= &(&rhs * &t);
-        }
-        q.normalize();
-        r.normalize();
-        (q, r)
+        let (div,rem) = self.div_rem(rhs);
+        assert!(rem.is_zero(), "Polynomial division has remainder");
+        div
     }
 }
 
@@ -482,7 +498,7 @@ impl<F: Field> Mul for PolyFreq<F> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::U64Field;
+    use crate::field::U64Field;
     type F = U64Field<15485863>;
     type P = Poly<F>;
 
@@ -523,7 +539,7 @@ mod tests {
     #[test]
     fn test_poly_div() {
         fn do_test(n: P, d: P) {
-            let (q, r) = n.clone() / d.clone();
+            let (q, r) = n.clone().div_rem(d.clone());
             let mut n2 = &q * &d;
             n2 += &r;
             assert_eq!(n, n2);
@@ -584,8 +600,8 @@ mod tests {
     #[test]
     fn test_pow() {
         let check = |base: &str, exp: u64, res: &str| {
-            let base = Poly::<F>::parse(&base).unwrap();
-            let res = Poly::<F>::parse(&res).unwrap();
+            let base = Poly::<F>::parse(base).unwrap();
+            let res = Poly::<F>::parse(res).unwrap();
             assert_eq!(base.pow(exp), res);
         };
         check("2", 3, "8");
@@ -598,11 +614,11 @@ mod tests {
     fn test_subst() {
         let check = |f_str: &str, subst_str: &str| {
             let val = F::from(13331u64);
-            let f = Poly::<F>::parse(&f_str).unwrap();
-            let subst = Poly::<F>::parse(&subst_str).unwrap();
+            let f = Poly::<F>::parse(f_str).unwrap();
+            let subst = Poly::<F>::parse(subst_str).unwrap();
             let ev1 = f.eval(&subst.eval(&val));
-            let ev2 = f.subst_x(&subst).eval(&val);
-            assert_eq!(ev1, ev2, "{} {} => {}", f, subst, f.subst_x(&subst));
+            let ev2 = f.compose(&subst).eval(&val);
+            assert_eq!(ev1, ev2, "{} {} => {}", f, subst, f.compose(&subst));
         };
 
         check("2", "2x");

@@ -3,8 +3,9 @@ use std::{
     ops::{Add, Mul, Neg},
 };
 
-use super::{f101, F101};
-use crate::ec::{Field, G2Point};
+use crate::{field::Field, pairing::G2};
+
+use super::types::{F101, f101};
 
 #[allow(non_snake_case)]
 pub fn g2f(a: u64, b: u64) -> G2P {
@@ -17,7 +18,7 @@ pub struct G2P {
     pub b: F101,
 }
 
-impl G2Point for G2P {
+impl G2 for G2P {
     type F = F101;
     type S = F101;
 

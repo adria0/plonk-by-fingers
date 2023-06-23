@@ -1,4 +1,4 @@
-use super::{ec::Field, poly::Poly};
+use crate::{field::Field, poly::Poly};
 use std::convert::TryInto;
 use std::{
     fmt::Display,
@@ -187,16 +187,14 @@ impl<F: Field> From<Poly<F>> for Matrix<F> {
     }
 }
 
-impl<F: Field> Into<Vec<F>> for Matrix<F> {
-    fn into(self) -> Vec<F> {
-        self.v
-    }
+impl<F:Field> From<Matrix<F>> for Vec<F> {
+    fn from(m: Matrix<F>) -> Self {  m.v }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::U64Field;
+    use crate::field::U64Field;
     type F = U64Field<104729>;
     type M = Matrix<F>;
     #[test]

@@ -1,6 +1,6 @@
 #![allow(clippy::len_without_is_empty)]
 
-use crate::ec::Field;
+use crate::field::Field;
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -288,7 +288,7 @@ impl<F: Field> std::ops::Mul for Expression<F> {
 #[ignore]
 #[test]
 fn test_expr() {
-    use crate::utils::U64Field;
+    use crate::field::U64Field;
     type F = U64Field<17>;
     let a = Expression::<F>::Var("a");
     let b = Expression::<F>::Var("b");
