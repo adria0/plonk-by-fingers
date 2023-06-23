@@ -1,4 +1,4 @@
-use crate::ec::Field;
+use crate::field::Field;
 use crate::matrix::Matrix;
 use crate::poly::Poly;
 
@@ -133,7 +133,7 @@ pub fn mul_ntt<F: Field, FFTI: FFT<F>>(
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::utils::U64Field;
+    use crate::field::U64Field;
 
     #[test]
     fn test_fft_vandermonde() {

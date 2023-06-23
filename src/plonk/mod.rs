@@ -1,62 +1,32 @@
 #![allow(clippy::many_single_char_names)]
+#![allow(dead_code)]
+
+mod constraints;
+mod plonk_by_hand;
+mod srs;
+
+use crate::field::{Field};
 
 use crate::{
-    ec::{GTPoint, Pairing},
-    poly::Field,
-};
-
-use crate::{
-    ec::{G1Point, G2Point},
     matrix::Matrix,
     poly::Poly,
 };
 
-use super::constraints::*;
+use constraints::*;
+use crate::pairing::{G1, G2, Pairing, GT};
+use srs::Srs;
 
 pub trait PlonkTypes: PartialEq {
     type GF: Field; // The field with order that is the order of G1
     type HF: Field; // The field with same size than H (OMEGA^|HF|==1)
-    type G1: G1Point<S = Self::GF>;
-    type G2: G2Point<S = Self::GF>;
-    type GT: GTPoint;
+    type G1: G1<S = Self::GF>;
+    type G2: G2<S = Self::GF>;
+    type GT: GT;
     type E: Pairing<G1 = Self::G1, G2 = Self::G2, GT = Self::GT>;
     const K1: Self::HF; // <k1 x OMEGA> coset generator
     const K2: Self::HF; // <K2 x OMEGA> coset generator
     const OMEGA: Self::HF; // The generator in HF
     fn gf(sf: Self::HF) -> Self::GF;
-}
-
-pub struct SRS<P: PlonkTypes> {
-    pub g1s: Vec<P::G1>,
-    pub g2_1: P::G2,
-    pub g2_s: P::G2,
-}
-
-impl<P: PlonkTypes> SRS<P> {
-    pub fn create(s: P::GF, n: usize) -> Self {
-        let mut g1s = Vec::new();
-        let mut s_pow = s;
-        g1s.push(P::G1::generator());
-        for _ in 0..n {
-            g1s.push(P::G1::generator() * s_pow);
-            s_pow = s_pow * s;
-        }
-        Self {
-            g1s,
-            g2_1: P::G2::generator(),
-            g2_s: P::G2::generator() * s,
-        }
-    }
-
-    // evaluate a polinomil at secret point s using SRS G1s
-    pub fn eval_at_s(&self, vs: &Poly<P::HF>) -> P::G1 {
-        vs.coeffs()
-            .iter()
-            .enumerate()
-            .fold(G1Point::identity(), |acc, (n, v)| {
-                acc + self.g1s[n] * P::gf(*v)
-            })
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -109,7 +79,7 @@ pub struct Challange<P: PlonkTypes> {
 }
 
 pub struct Plonk<P: PlonkTypes> {
-    srs: SRS<P>,
+    srs: Srs<P>,
     h: Vec<P::HF>,
     h_pows_inv: Matrix<P::HF>,
     k1_h: Vec<P::HF>,
@@ -118,7 +88,7 @@ pub struct Plonk<P: PlonkTypes> {
 }
 
 impl<P: PlonkTypes> Plonk<P> {
-    pub fn new(srs: SRS<P>, omega_pows: P::HF) -> Self {
+    pub fn new(srs: Srs<P>, omega_pows: P::HF) -> Self {
         // This roots of unity should be able to be generated through a generator
         // So the generator (called omega) creates these roots of unity (H)
 
@@ -367,8 +337,7 @@ impl<P: PlonkTypes> Plonk<P> {
 
         let t_4_z_h = alpha_2_z_x_1_l_1_x;
 
-        let (t_x, rem) = (t_1_z_h + t_2_z_h - t_3_z_h + t_4_z_h) / self.z_h_x.clone();
-        assert_eq!(rem, Poly::zero());
+        let t_x = (t_1_z_h + t_2_z_h - t_3_z_h + t_4_z_h) / self.z_h_x.clone();
 
         // It turns out that for n constraints, t will have degree 3n+5, which is too large to use the SRS
         // from the setup phase in Part 1. However we can break t into three parts of degree n+1 each.
@@ -435,12 +404,10 @@ impl<P: PlonkTypes> Plonk<P> {
             + (c_x - c_z) * v.pow(4)
             + (s_sigma_1 - s_sigma_1_z) * v.pow(5)
             + (s_sigma_2 - s_sigma_2_z) * v.pow(6);
-        let (w_z_x, rem) = w_z_x / Poly::new(vec![-*z, P::HF::one()]);
-        assert_eq!(rem, Poly::zero());
+        let w_z_x = w_z_x / Poly::new(vec![-*z, P::HF::one()]);
 
         // compute opening proof polinomial w_zw_x, divide by (x - z*omega)
-        let (w_z_omega_x, rem) = (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::HF::one()]);
-        assert_eq!(rem, Poly::zero());
+        let w_z_omega_x = (z_x - z_omega_z) / Poly::new(vec![-*z * omega, P::HF::one()]);
 
         // compute opening proof polinomials at s
         let w_z_s = self.srs.eval_at_s(&w_z_x);

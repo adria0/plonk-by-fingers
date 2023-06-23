@@ -1,7 +1,9 @@
 pub mod driving_fri;
-pub mod ec;
+pub mod field;
 pub mod fft;
 pub mod matrix;
-pub mod plonk_by_hand;
+mod plonk;
+pub mod pairing;
 pub mod poly;
-pub mod utils;
+pub mod stark101;
+pub mod mulmodg;

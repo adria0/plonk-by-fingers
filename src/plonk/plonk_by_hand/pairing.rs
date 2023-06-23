@@ -1,7 +1,8 @@
 #![allow(clippy::many_single_char_names)]
 
-use super::{f101, g1::G1P, g2::G2P, gt::GTP};
-use crate::ec::{Field, G1Point, G2Point, GTPoint, Pairing};
+use crate::{pairing::{Pairing, G1, G2, GT}, poly::Field, field::U64Field};
+
+use super::{g1::G1P, g2::G2P, gt::GTP, types::f101};
 
 pub struct PBHPairing {}
 impl Pairing for PBHPairing {
@@ -10,7 +11,7 @@ impl Pairing for PBHPairing {
     type GT = GTP;
 
     fn pairing(g1: Self::G1, g2: Self::G2) -> Self::GT {
-        let p = <G1P as G1Point>::F::order();
+        let p = <G1P as G1>::F::order();
         let r = G1P::generator_subgroup_size().as_u64();
         let k = G2P::embeeding_degree();
 
@@ -34,7 +35,7 @@ fn pairing_f(r: u64, p: G1P, q: G2P) -> GTP {
     };
 
     if r == 1 {
-        GTP::new(f101(1), f101(0))
+        GTP::new(f101(1), U64Field::<101>(0))
     } else if r % 2 == 1 {
         let r = r - 1;
         let (x, y, c) = l(p * f101(r), p);
@@ -48,6 +49,9 @@ fn pairing_f(r: u64, p: G1P, q: G2P) -> GTP {
 
 #[cfg(test)]
 mod tests {
+    use crate::{plonk::plonk_by_hand::{g1::G1P, g2::G2P}, pairing::{G1, G2, Pairing, GT}};
+    use crate::plonk::plonk_by_hand::pairing::PBHPairing;
+
     use super::*;
 
     use std::ops::Mul;
@@ -59,7 +63,7 @@ mod tests {
         let q = G2P::generator().mul(f101(3));
         let a = f101(5);
 
-        let ê = |g1, g2| PBHPairing::pairing(g1, g2);
+        let ê = |g1, g2| { PBHPairing::pairing(g1, g2) } ;
 
         // ê(aP, Q) = ê(P,aQ)
 
