@@ -47,8 +47,7 @@ impl MerkleTree {
     pub fn new(data: &[FF]) -> Self {
         let num_leaves = 2_usize.pow((data.len() as f32).log2().ceil() as u32);
         let mut data = data.to_vec();
-        data.to_vec()
-            .append(&mut vec![FF::zero(); num_leaves - data.len()]);
+        data.append(&mut vec![FF::zero(); num_leaves - data.len()]);
         let height = num_leaves.checked_ilog2().unwrap();
         let mut facts = HashMap::new();
         let root = Self::recursive_build_tree(&mut facts, &data, 1);
@@ -100,7 +99,7 @@ impl MerkleTree {
         let path = Self::bin(node_id).into_iter().skip(1);
 
         for (bit, auth) in path.zip(decommitment.iter()).rev() {
-            let h = if bit { format!("{cur:}{auth:}") } else { format!("{auth:}{cur:}") };
+            let h = if bit { format!("{auth:}{cur:}") } else { format!("{cur:}{auth:}") };
             cur = sha256hex(h);
         }
         cur == root
@@ -111,10 +110,11 @@ impl MerkleTree {
 }
 
 #[test]
-fn mt() {
-    let data = [1,2].map(FF::from);
+fn mt_witness() {
+    let data = [1,2,3,4,7,9,11].map(FF::from);
     let mt = MerkleTree::new(&data);
-    let leaf_id = 0;
-    let decommitment = mt.get_authentication_path(leaf_id);
-    assert!(MerkleTree::verify_decommitment(leaf_id, data[leaf_id], decommitment, mt.root()))
+    for (leaf_id,_) in data.iter().enumerate() {
+        let decommitment = mt.get_authentication_path(leaf_id);
+        assert!(MerkleTree::verify_decommitment(leaf_id, data[leaf_id], decommitment, mt.root()))
+    }
 }

@@ -6,7 +6,7 @@ use super::format::*;
 use super::FF;
 
 pub struct Channel {
-    state: String,
+    pub state: String,
 }
 
 impl Channel {
@@ -17,6 +17,14 @@ impl Channel {
     }
     pub fn send(&mut self, s: &str) {
         self.state = sha256hex(format!("{}{}", self.state, s));
+    }
+    pub fn send_ff(&mut self, v: FF) {
+        self.send(&as_neg_str(v));
+    }
+
+    pub fn send_path(&mut self, path: Vec<String>) {
+        let serial = format!("[{}]",path.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", "));
+        self.send(&serial);
     }
 
     pub fn receive_random_int(&mut self, min: BigUint, max: BigUint) -> BigUint {

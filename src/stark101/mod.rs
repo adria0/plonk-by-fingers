@@ -1,29 +1,29 @@
-use crate::field::Field;
-use crate::mulmodg::MulGroupMod;
-use crate::poly::Poly;
-use itertools::Itertools;
-use num_bigint::BigUint;
-use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::ops::Index;
-use std::{convert::TryInto, marker::PhantomData};
+#![allow(non_snake_case)]
 
-
-mod format;
 mod channel;
+mod format;
 mod mt;
-
-use format::{sha256hex, as_neg_str};
-use channel::Channel;
-use mt::MerkleTree;
 
 // https://starkware.co/stark-101/
 
-type FF = crate::field::U64Field<3221225473>;
-
+pub type FF = crate::field::U64Field<3221225473>;
 
 #[test]
 fn stark101_test_1() {
+
+    use itertools::Itertools;
+
+    use crate::{
+        field::Field,
+        mulmodg::MulGroupMod,
+        poly::Poly,
+        stark101::{
+            channel::Channel,
+            format::{as_neg_str, sha256hex},
+            mt::MerkleTree,
+        },
+    };
+
     /*
         Overview
 
@@ -72,8 +72,6 @@ fn stark101_test_1() {
         out
     };
 
-    let N = 1022;
-
     let a = fibonacci_sq(3141592.into(), 1022);
     assert_eq!(a[1022], 2338775057u64.into());
 
@@ -117,13 +115,13 @@ fn stark101_test_1() {
 
     // Evaluate on a Coset
     // so `f_eval` this is the LDE (low degree externsion) of `f`
-    let f_eval: Vec<_> = eval_domain.iter().map(|v| f.eval(&v)).collect();
+    let f_eval: Vec<_> = eval_domain.iter().map(|v| f.eval(v)).collect();
 
     // Commitments --------------------------------------------
 
-    let root = MerkleTree::new(&f_eval).root();
+    let mt = MerkleTree::new(&f_eval);
     assert_eq!(
-        root,
+        mt.root(),
         "6c266a104eeaceae93c14ad799ce595ec8c2764359d7ad1b4b7c57a4da52be04"
     );
 
@@ -131,7 +129,7 @@ fn stark101_test_1() {
 
     let mut channel = Channel::new();
 
-    channel.send(&root);
+    channel.send(&mt.root());
 
     // PART II : Constraints ===============================================
     // =====================================================================
@@ -172,7 +170,7 @@ fn stark101_test_1() {
         assert_eq!(CP.degree(), 1023);
         assert_eq!(CP.eval(&FF::from(2439804)), 838767343.into());
 
-        let CP_eval: Vec<_> = eval_domain.iter().map(|v| CP.eval(&v)).collect();
+        let CP_eval: Vec<_> = eval_domain.iter().map(|v| CP.eval(v)).collect();
         let CP_root = MerkleTree::new(&CP_eval).root();
 
         assert_eq!(
@@ -185,8 +183,8 @@ fn stark101_test_1() {
     let alpha1 = channel.receive_random_field_element();
     let alpha2 = channel.receive_random_field_element();
 
-    let cp = alpha0 * p0.clone() + alpha1 * p1.clone() + alpha2 * p2.clone();
-    let cp_eval: Vec<_> = eval_domain.iter().map(|v| cp.eval(&v)).collect();
+    let cp = alpha0 * p0 + alpha1 * p1 + alpha2 * p2;
+    let cp_eval: Vec<_> = eval_domain.iter().map(|v| cp.eval(v)).collect();
 
     // PART 3: FRI Commitments ============================================
     // ====================================================================
@@ -266,8 +264,9 @@ fn stark101_test_1() {
      -> (Vec<_>, Vec<_>, Vec<_>, Vec<_>) {
         let mut fri_polys = vec![cp];
         let mut fri_domains = vec![domain];
-        let mut fri_merkles = vec![MerkleTree::new(&cp_eval).root()];
+        let mut fri_merkles = vec![MerkleTree::new(&cp_eval)];
         let mut fri_layers = vec![cp_eval];
+
         while fri_polys[fri_polys.len() - 1].degree() > 0 {
             let beta = channel.receive_random_field_element();
             let (next_poly, next_domain, next_layer) = next_fri_layer(
@@ -275,41 +274,121 @@ fn stark101_test_1() {
                 &fri_domains[fri_domains.len() - 1],
                 beta,
             );
+
             fri_polys.push(next_poly);
             fri_domains.push(next_domain);
-            fri_merkles.push(MerkleTree::new(&next_layer).root());
+            fri_merkles.push(MerkleTree::new(&next_layer));
             fri_layers.push(next_layer);
-            channel.send(&fri_merkles[fri_merkles.len() - 1]);
+            channel.send(&fri_merkles[fri_merkles.len() - 1].root());
         }
-        channel.send(&as_neg_str(
-            *fri_polys[fri_merkles.len() - 1].get(0).unwrap(),
-        ));
+
+        let n = fri_polys.iter_mut().last().and_then(|v| v.get(0)).unwrap();
+        channel.send_ff(*n);
         (fri_polys, fri_domains, fri_layers, fri_merkles)
+    };
+
+    let (fri_polys, fri_domains, fri_layers, fri_merkles) =
+        fri_commit(cp, eval_domain, cp_eval, &mut channel);
+
+    assert_eq!(fri_layers.len(), 11, "Expected number of FRI layers is 11");
+    assert_eq!(
+        fri_layers[fri_layers.len() - 1].len(),
+        8,
+        "Expected last layer to contain exactly 8 elements"
+    );
+
+    assert!(
+        fri_layers[fri_layers.len() - 1]
+            .iter()
+            .all(|v| v == &FF::from(1443223587)),
+        "Expected last layer to be constant"
+    );
+
+    assert_eq!(
+        fri_polys[fri_polys.len() - 1].degree(),
+        0,
+        "Expected last polynomial to be constant (degree 0)"
+    );
+    assert_eq!(
+        fri_merkles[fri_merkles.len() - 1].root(),
+        "38fe69bdc218d0327beba3197aaee3c0ba707912d0dec81301b8a7fca6a022bf"
+    );
+
+    assert_eq!(
+        channel.state,
+        "eba2039aca50b08d50c5f4775863e1adccc9d133dd52e74b624efb9937780ae7"
+    );
+
+    // PART 4: FRI Commitments ============================================
+    // ====================================================================
+
+    let decommit_on_fri_layers = |idx: usize, channel: &mut Channel| {
+        for (layer, merkle) in fri_layers
+            .iter()
+            .dropping_back(1)
+            .zip_eq(fri_merkles.iter().dropping_back(1))
+        {
+            let length = layer.len();
+            let idx = idx % length;
+            let sib_idx = (idx + length / 2) % length;
+            channel.send_ff(layer[idx]);
+            channel.send_path(merkle.get_authentication_path(idx));
+            channel.send_ff(layer[sib_idx]);
+            channel.send_path(merkle.get_authentication_path(sib_idx));
+        }
+        channel.send_ff(*fri_layers.iter().last().and_then(|l| l.get(0)).unwrap());
     };
 
     {
         // test
         let mut test_channel = Channel::new();
-        let (fri_polys, fri_domains, fri_layers, fri_merkles) =
-            fri_commit(cp, eval_domain, cp_eval, &mut test_channel);
-
-        assert_eq!(fri_layers.len(), 11);
-        assert_eq!(fri_layers[fri_layers.len() - 1].len(), 8);
-        assert!(fri_layers[fri_layers.len() - 1]
-            .iter()
-            .all(|v| v == &fri_layers[fri_layers.len() - 1][0]));
-        assert_eq!(fri_polys[fri_polys.len() - 1].degree(), 0);
-
-        /*
-        assert all([x == FieldElement(-1138734538) for x in fri_layers[-1]]), f'Expected last layer to be constant.'
-        assert fri_merkles[-1].root == '1c033312a4df82248bda518b319479c22ea87bd6e15a150db400eeff653ee2ee', 'Last layer Merkle root is wrong.'
-        assert test_channel.state == '61452c72d8f4279b86fa49e9fb0fdef0246b396a4230a2bfb24e2d5d6bf79c2e', 'The channel state is not as expected.'
-        */
+        for query in [7527, 8168, 1190, 2668, 1262, 1889, 3828, 5798, 396, 2518] {
+            decommit_on_fri_layers(query, &mut test_channel);
+        }
+        assert_eq!(
+            test_channel.state,
+            "0c7931382b6a846b4d91b485dcb51f8511b971f94513f72870392bfe7641ca36"
+        );
     }
 
-    // PART 4: FRI Commitments ============================================
-    // ====================================================================
+    let decommit_on_query = |idx: usize, channel: &mut Channel| {
+        assert!(idx + 16 < f_eval.len());
+        channel.send_ff(f_eval[idx]); // f(x).
+        channel.send_path(mt.get_authentication_path(idx)); // auth path for f(x).
+        channel.send_ff(f_eval[idx + 8]); // f(gx).
+        channel.send_path(mt.get_authentication_path(idx + 8)); // auth path for f(gx).
+        channel.send_ff(f_eval[idx + 16]); // f(g^2x).
+        channel.send_path(mt.get_authentication_path(idx + 16)); // auth path for f(g^2x).
+        decommit_on_fri_layers(idx, channel)
+    };
 
-    unreachable!();
+    {
+        // test
+        let mut test_channel = Channel::new();
+        for query in [8134, 1110, 1134, 6106, 7149, 4796, 144, 4738, 957] {
+            decommit_on_query(query, &mut test_channel);
+        }
+
+        assert_eq!(test_channel.state,"856682d2782140a10a371eb258ee85c05618f34ee0c695ae836aec6e4fc3f9b1");
+    }
+
+    let decommit_fri = |channel: &mut Channel| {
+        for _ in 0..3 {
+            // Get a random index from the verifier and send the corresponding decommitment.
+            let rnd = channel.receive_random_int(0u64.into(), (8191u64-16).into());
+            let idx = if let Some(n) = rnd.to_u64_digits().first() {
+                *n as usize
+            } else {
+                0
+            };
+            decommit_on_query(idx, channel);
+        }
+    };
+
+    {
+        let mut test_channel = Channel::new();
+        decommit_fri(&mut test_channel);
+        assert_eq!(test_channel.state, "3424b78347d24261f921cd1a3b6dec864c90729b8d7c2c678cde327c68ab7c5b");
+    }
+
 }
-

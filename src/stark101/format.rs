@@ -1,12 +1,6 @@
 use crate::field::Field;
-use crate::mulmodg::MulGroupMod;
-use crate::poly::Poly;
-use itertools::Itertools;
-use num_bigint::BigUint;
+
 use sha2::{Digest, Sha256};
-use std::collections::HashMap;
-use std::ops::Index;
-use std::{convert::TryInto, marker::PhantomData};
 
 use super::FF;
 
