@@ -1,7 +1,6 @@
 use crate::{plonk::PlonkTypes, poly::Field};
 
-
-use crate::field::{U64Field};
+use crate::field::U64Field;
 
 use super::pairing::PBHPairing;
 use super::{g1, g2, gt};

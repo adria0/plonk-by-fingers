@@ -1,6 +1,10 @@
 #![allow(clippy::many_single_char_names)]
 
-use crate::{pairing::{Pairing, G1, G2, GT}, poly::Field, field::U64Field};
+use crate::{
+    field::U64Field,
+    pairing::{Pairing, G1, G2, GT},
+    poly::Field,
+};
 
 use super::{g1::G1P, g2::G2P, gt::GTP, types::f101};
 
@@ -49,8 +53,11 @@ fn pairing_f(r: u64, p: G1P, q: G2P) -> GTP {
 
 #[cfg(test)]
 mod tests {
-    use crate::{plonk::plonk_by_hand::{g1::G1P, g2::G2P}, pairing::{G1, G2, Pairing, GT}};
     use crate::plonk::plonk_by_hand::pairing::PBHPairing;
+    use crate::{
+        pairing::{Pairing, G1, G2, GT},
+        plonk::plonk_by_hand::{g1::G1P, g2::G2P},
+    };
 
     use super::*;
 
@@ -63,7 +70,7 @@ mod tests {
         let q = G2P::generator().mul(f101(3));
         let a = f101(5);
 
-        let ê = |g1, g2| { PBHPairing::pairing(g1, g2) } ;
+        let ê = |g1, g2| PBHPairing::pairing(g1, g2);
 
         // ê(aP, Q) = ê(P,aQ)
 

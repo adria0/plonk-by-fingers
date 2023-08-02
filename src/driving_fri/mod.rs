@@ -1,9 +1,9 @@
 #![allow(non_snake_case, unused)]
 
-use crate::poly::Poly;
 use crate::field::Field;
-use std::ops::Index;
+use crate::poly::Poly;
 use anyhow::Result;
+use std::ops::Index;
 
 #[derive(Clone, Debug)]
 struct MulGroupMod<F: Field> {
@@ -68,7 +68,7 @@ impl<F: Field> Iterator for MulGroupModIterator<F> {
 #[test]
 fn fri_test() -> Result<()> {
     type F17 = crate::field::U64Field<17>;
-    let f17 = |n: u64| { F17::from(n) };
+    let f17 = |n: u64| F17::from(n);
 
     let trace_len = 4;
 
@@ -79,7 +79,7 @@ fn fri_test() -> Result<()> {
     let D_t = MulGroupMod::new(g);
     let t_x = D_t.lagrange(a.take(trace_len));
 
-    println!("{}",t_x);
+    println!("{}", t_x);
 
     assert_eq!(t_x.eval(&f17(1)), f17(3));
     assert_eq!(t_x.eval(&f17(13)), f17(9));
@@ -123,7 +123,6 @@ fn fri_test() -> Result<()> {
     // split H_x into even and odds, check that H(x) = H_1(x^2) + x·H_2(x^2)
 
     let (H_1_x, H_2_x) = {
-
         let H_1_coeffs =
             H_x.coeffs()
                 .iter()
@@ -157,8 +156,14 @@ fn fri_test() -> Result<()> {
         (H_1_eval, H_2_eval)
     };
 
-    assert_eq!(H_1_eval.collect::<Vec<_>>(), vec![f17(12), f17(13), f17(12), f17(13)]);
-    assert_eq!(H_2_eval.collect::<Vec<_>>(), vec![f17(7), f17(10), f17(15), f17(12)]);
+    assert_eq!(
+        H_1_eval.collect::<Vec<_>>(),
+        vec![f17(12), f17(13), f17(12), f17(13)]
+    );
+    assert_eq!(
+        H_2_eval.collect::<Vec<_>>(),
+        vec![f17(7), f17(10), f17(15), f17(12)]
+    );
 
     // Sampling outside the original region ----------------------------------------
 
@@ -168,27 +173,29 @@ fn fri_test() -> Result<()> {
 
     let pp = |s| Poly::<F17>::parse(s).unwrap();
 
-    let H_1_z = H_1_x.eval(&(z*z));
-    let H_2_z = H_2_x.eval(&(z*z));
+    let H_1_z = H_1_x.eval(&(z * z));
+    let H_2_z = H_2_x.eval(&(z * z));
 
     // Why does the verifier needs this? --------------------------------------------
     // The verifier has to check that the provided H_1(z^2) and H_2(z^2) matches the
     // calculation of H(z) from the trace elements
 
-    let deep_1 = (t_x.clone() - Poly::y(t_x.eval(&z))) /  Poly::new([-z,f17(1)]);
-    let deep_2 = (t_x.clone() - Poly::y(t_x.eval(&(g*z)))) /  Poly::new([-g*z,f17(1)]);
+    let deep_1 = (t_x.clone() - Poly::y(t_x.eval(&z))) / Poly::new([-z, f17(1)]);
+    let deep_2 = (t_x.clone() - Poly::y(t_x.eval(&(g * z)))) / Poly::new([-g * z, f17(1)]);
 
     // !! There is a mistake here: divided by x-z not x-z^2
-    let deep_3= (H_1_x.compose(&Poly::x().pow(2)) - H_1_x.eval(&(z*z))) / Poly::new([-z,f17(1)]);
+    let deep_3 =
+        (H_1_x.compose(&Poly::x().pow(2)) - H_1_x.eval(&(z * z))) / Poly::new([-z, f17(1)]);
 
-    let deep_4= (H_2_x.compose(&Poly::x().pow(2)) - H_2_x.eval(&(z*z))) / Poly::new([-z,f17(1)]);
+    let deep_4 =
+        (H_2_x.compose(&Poly::x().pow(2)) - H_2_x.eval(&(z * z))) / Poly::new([-z, f17(1)]);
 
-    let gamma = [f17(1);4];
+    let gamma = [f17(1); 4];
 
     assert_eq!(deep_1, pp("13") * pp("5+16x+x^2"));
     assert_eq!(deep_2, pp("13") * pp("16+10x+x^2"));
     assert_eq!(deep_3, pp("15") * pp("15+x") * pp("8+x") * pp("2+x"));
-    assert_eq!(deep_4, pp("9")  * pp("8+x"));
+    assert_eq!(deep_4, pp("9") * pp("8+x"));
 
     let P_0_x = deep_1 * gamma[0] + deep_2 * gamma[1] + deep_3 * gamma[2] + deep_4 * gamma[3];
 

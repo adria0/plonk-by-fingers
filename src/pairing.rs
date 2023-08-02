@@ -1,7 +1,10 @@
 #![allow(clippy::many_single_char_names)]
 
-use std::{fmt::Display, ops::{Neg, Mul, Add}};
-use crate::field::{Field};
+use crate::field::Field;
+use std::{
+    fmt::Display,
+    ops::{Add, Mul, Neg},
+};
 
 pub trait G1:
     Copy

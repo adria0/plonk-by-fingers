@@ -5,15 +5,12 @@ mod constraints;
 mod plonk_by_hand;
 mod srs;
 
-use crate::field::{Field};
+use crate::field::Field;
 
-use crate::{
-    matrix::Matrix,
-    poly::Poly,
-};
+use crate::{matrix::Matrix, poly::Poly};
 
+use crate::pairing::{Pairing, G1, G2, GT};
 use constraints::*;
-use crate::pairing::{G1, G2, Pairing, GT};
 use srs::Srs;
 
 pub trait PlonkTypes: PartialEq {

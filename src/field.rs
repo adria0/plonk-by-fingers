@@ -1,7 +1,8 @@
 use super::poly::Poly;
 use std::{
+    borrow::Cow,
     fmt::{Debug, Display},
-    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign}, borrow::Cow,
+    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 mod u64field;
@@ -45,5 +46,3 @@ pub trait Field:
     }
     fn carrying_mul(&self, rhs: &Self, carry: &mut Self) -> Self;
 }
-
-

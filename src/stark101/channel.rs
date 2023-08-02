@@ -22,8 +22,14 @@ impl Channel {
         self.send(&as_neg_str(v));
     }
 
-    pub fn send_path(&mut self, path: Vec<String>) {
-        let serial = format!("[{}]",path.iter().map(|p| format!("'{}'", p)).collect::<Vec<_>>().join(", "));
+    pub fn send_path(&mut self, path: &[String]) {
+        let serial = format!(
+            "[{}]",
+            path.iter()
+                .map(|p| format!("'{}'", p))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
         self.send(&serial);
     }
 

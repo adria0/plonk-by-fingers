@@ -1,6 +1,6 @@
 use crate::poly::Poly;
 
-use super::{PlonkTypes};
+use super::PlonkTypes;
 use crate::pairing::{G1, G2};
 
 pub struct Srs<P: PlonkTypes> {
@@ -30,8 +30,6 @@ impl<P: PlonkTypes> Srs<P> {
         vs.coeffs()
             .iter()
             .enumerate()
-            .fold(G1::identity(), |acc, (n, v)| {
-                acc + self.g1s[n] * P::gf(*v)
-            })
+            .fold(G1::identity(), |acc, (n, v)| acc + self.g1s[n] * P::gf(*v))
     }
 }

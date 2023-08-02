@@ -6,7 +6,7 @@ use std::{
 
 use crate::{field::Field, pairing::G1};
 
-use super::types::{F101, f101};
+use super::types::{f101, F101};
 
 #[allow(non_snake_case)]
 pub fn g1f(x: u64, y: u64) -> G1P {

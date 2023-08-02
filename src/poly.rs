@@ -1,6 +1,7 @@
 pub use crate::field::Field;
 pub use crate::matrix::Matrix;
 pub use anyhow::{anyhow, bail, Result};
+use sha2::{Digest, Sha256};
 use std::convert::TryFrom;
 use std::{
     cmp::max,
@@ -14,25 +15,32 @@ pub struct Poly<F: Field>(Vec<F>);
 impl<F: Field> Poly<F> {
     /// Creates a new Poly from its `coeffs`icients, first element the coefficient for x^0
     /// for safetly, input value is normalized (trailing zeroes are removed)
-    pub fn new<I: IntoIterator<Item=F>>(coeffs: I) -> Self {
+    pub fn new<I: IntoIterator<Item = F>>(coeffs: I) -> Self {
         let mut poly = Poly(coeffs.into_iter().collect());
         poly.normalize();
         poly
     }
 
     /// Creates a new polinomial where the `coeffs` fits in u64 values
-    pub fn from<I: IntoIterator<Item=i64>>(coeffs: I) -> Self {
+    pub fn from<I: IntoIterator<Item = i64>>(coeffs: I) -> Self {
         Poly::new(coeffs.into_iter().map(|n| F::from(n)).collect::<Vec<F>>())
     }
 
-    pub fn mset<I: IntoIterator<Item=(usize,F)>>(coeffs: I) -> Self {
+    pub fn mset<I: IntoIterator<Item = (usize, F)>>(coeffs: I) -> Self {
         let mut poly = Poly::zero();
-        for (i,coeff) in coeffs {
+        for (i, coeff) in coeffs {
             poly = poly.set(i, coeff);
         }
         poly
     }
 
+    pub fn hash(&self) -> String {
+        let mut hasher = Sha256::new();
+        self.0
+            .iter()
+            .for_each(|coeff| hasher.update(coeff.le_bytes()));
+        hex::encode(hasher.finalize())
+    }
 
     // Returns the x polinomial
     pub fn x() -> Self {
@@ -132,7 +140,7 @@ impl<F: Field> Poly<F> {
     }
 
     /// Creates a polinomial that has roots at the selected points (x-p_1)(x-p_2)...(x-p_n)
-    pub fn z<I: IntoIterator<Item=F>>(points: I) -> Self {
+    pub fn z<I: IntoIterator<Item = F>>(points: I) -> Self {
         points
             .into_iter()
             .fold(Poly::one(), |acc, x| &acc * &Poly::new(vec![-x, F::one()]))
@@ -206,7 +214,7 @@ impl<F: Field> Poly<F> {
     }
 
     /// Sets the `i`-th coefficient to the selected `p` value
-    pub fn set(mut self, i: usize, p: F) -> Self{
+    pub fn set(mut self, i: usize, p: F) -> Self {
         if self.0.len() < i + 1 {
             self.0.resize(i + 1, F::zero());
         }
@@ -343,7 +351,7 @@ impl<F: Field> Div for Poly<F> {
     type Output = Poly<F>;
 
     fn div(self, rhs: Poly<F>) -> Self::Output {
-        let (div,rem) = self.div_rem(rhs);
+        let (div, rem) = self.div_rem(rhs);
         assert!(rem.is_zero(), "Polynomial division has remainder");
         div
     }

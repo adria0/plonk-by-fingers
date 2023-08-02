@@ -1,9 +1,9 @@
 pub mod driving_fri;
-pub mod field;
 pub mod fft;
+pub mod field;
 pub mod matrix;
-mod plonk;
+pub mod mulmodg;
 pub mod pairing;
+mod plonk;
 pub mod poly;
 pub mod stark101;
-pub mod mulmodg;

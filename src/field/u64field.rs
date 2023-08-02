@@ -1,9 +1,10 @@
-use crate::poly::Poly;
 use super::Field;
+use crate::poly::Poly;
 
 use std::{
+    borrow::Cow,
     fmt::{Debug, Display},
-    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign}, borrow::Cow,
+    ops::{Add, AddAssign, Div, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 fn extended_gcd(a: i64, b: i64) -> (i64, i64, i64) {

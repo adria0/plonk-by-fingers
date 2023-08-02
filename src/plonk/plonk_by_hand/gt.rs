@@ -6,8 +6,8 @@ use std::fmt::Display;
 use std::ops::Mul;
 use std::ops::Neg;
 
-use super::types::F101;
 use super::types::f101;
+use super::types::F101;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct GTP {

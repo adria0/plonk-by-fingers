@@ -1,4 +1,3 @@
-
 mod g1;
 mod g2;
 mod gt;
@@ -7,9 +6,11 @@ mod types;
 
 #[cfg(test)]
 mod tests {
-    use crate::plonk::plonk_by_hand::{types::{f101, PlonkByHandTypes, f17}, g1::g1f};
+    use crate::plonk::plonk_by_hand::{
+        g1::g1f,
+        types::{f101, f17, PlonkByHandTypes},
+    };
 
-    
     use super::super::super::plonk::*;
 
     #[test]

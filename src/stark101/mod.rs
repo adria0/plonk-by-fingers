@@ -1,6 +1,10 @@
 #![allow(non_snake_case)]
 
+use crate::poly::Poly;
+use crate::field::Field;
+
 mod channel;
+mod example;
 mod format;
 mod mt;
 
@@ -8,9 +12,181 @@ mod mt;
 
 pub type FF = crate::field::U64Field<3221225473>;
 
+struct FriProof<F: Field> {
+    evals : Vec<(F,F)>
+}
+impl<F : Field> FriProof<F> {
+    // Prove what we now the polinomial p
+    fn prove<RNDS>(mut poly: Poly<F>, domain: &[F], rands: RNDS) -> Self
+    where RNDS : IntoIterator<Item=F> {
+        let mut rands = rands.into_iter();
+        let idx = rands.next().unwrap().as_u64() as usize;
+        let mut evals = Vec::new();
+        let mut domain = domain.to_vec();
+
+        while poly.degree() > 0 {
+            let x = domain[idx % domain.len()];
+            evals.push((poly.eval(&x),poly.eval(&-x)));
+
+            let mut g_x2 = vec![];
+            let mut h_x2 = vec![];
+
+            for (i, coeff) in poly.coeffs().iter().enumerate() {
+                if i % 2 == 0 {
+                    g_x2.push(*coeff);
+                } else {
+                    h_x2.push(*coeff);
+                }
+            }
+
+            let g_x2 = Poly::new(g_x2);
+            let h_x2 = Poly::new(h_x2);
+
+            poly = g_x2 + h_x2 * Poly::new([rands.next().unwrap()]);
+
+            domain = (0..domain.len() / 2)
+                .map(|i| domain[i * 2])
+                .collect::<Vec<_>>();
+
+        }
+
+        Self { evals }
+
+    }
+
+    // Verify low degree
+    fn verify<RNDS>(&self, domain: &[F], rands: RNDS) -> bool
+    where RNDS : IntoIterator<Item=F> {
+        let mut rands = rands.into_iter();
+        let idx = rands.next().unwrap().as_u64() as usize;
+        let mut domain = domain.to_vec();
+        for layer in 0..self.evals.len() - 1 {
+            let x = domain[idx % domain.len()];
+            let rand = rands.next().unwrap();
+            let check = ((rand + x) / (x * F::from(2))).unwrap() * self.evals[layer].0
+                + ((rand - x) / (-x * F::from(2))).unwrap() * self.evals[layer].1;
+
+            if self.evals[layer+1].0 != check  {
+                return false;
+            }
+
+            domain = (0..domain.len() / 2)
+                .map(|i| domain[i * 2])
+                .collect::<Vec<_>>();
+        }
+
+        true
+    }
+}
+
+
+#[test]
+fn fri_base() {
+
+}
+
+#[test]
+fn fri_hand() {
+    use crate::field::Field;
+
+    type F = crate::field::U64Field<41>;
+    let w = F::from(27);
+
+    let domain0 = (0..8).map(|n| w.pow(n)).collect::<Vec<_>>();
+    assert_eq!(
+        domain0,
+        vec![1, 27, 32, 3, 40, 14, 9, 38]
+            .into_iter()
+            .map(F::from)
+            .collect::<Vec<_>>()
+    );
+
+    // trace polynomial is 7+8x+9x^2
+    // cp0 polinomial is the same
+    let trace = Poly::<F>::from([7, 8, 9]); // 7+8x+9x^2
+
+    let cp0 = Poly::lagrange(
+        &domain0
+            .iter()
+            .map(|x| (x.clone(), trace.eval(x)))
+            .collect::<Vec<_>>(),
+    );
+
+    // split poly in p(x) = g(x^2)+ xh(x^2)
+    // g(x^2)=7+9x
+    // h(x^2)=8
+
+    let mut g_x2 = vec![];
+    let mut h_x2 = vec![];
+
+    for (i, coeff) in cp0.coeffs().iter().enumerate() {
+        if i % 2 == 0 {
+            g_x2.push(*coeff);
+        } else {
+            h_x2.push(*coeff);
+        }
+    }
+
+    let g_x2 = Poly::new(g_x2);
+    let h_x2 = Poly::new(h_x2);
+
+    {
+        let x2 = Poly::from([0, 0, 1]);
+        let check = g_x2.compose(&x2) + Poly::x() * h_x2.compose(&x2);
+        assert_eq!(check, cp0);
+    }
+
+    // use random beta, and random linear combine the two polinomials
+    // p1 is in the domain x^2
+    // betq = 7, y = x^2
+    // cp1(y) = g(y)+7·h(y)
+    // cp1(x) = 7+9x+7·9 = 9x + 22
+    // new domain is [1,32,40,9]
+
+    let beta1 = F::from(11);
+    let cp1 = g_x2.clone() + h_x2.clone() * Poly::new([beta1]);
+
+    let domain1 = (0..domain0.len() / 2)
+        .map(|i| domain0[i * 2])
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        domain1,
+        vec![1, 32, 40, 9]
+            .into_iter()
+            .map(F::from)
+            .collect::<Vec<_>>()
+    );
+
+    // generate proof, index comes from transript, gives idx_{pos,neg}_cp{0,1}
+    // ---------------------------------------------------------------------------------
+
+    let idx = 5;
+
+    // x domain: 1,27(+),32,3,40,14,9,38(-)
+    let idx_pos_cp0 = cp0.eval(&domain0[idx % domain0.len()]);
+    let idx_neg_cp0 = cp0.eval(&-domain0[idx % domain0.len()]);
+
+    // x^2 domain: 1 32(+) 40 9(-)
+    let idx_pos_cp1 = cp1.eval(&domain1[idx % domain1.len()]);
+    let idx_neg_cp1 = cp1.eval(&-domain1[idx % domain1.len()]);
+
+    // verify transition from cp0 to cp1
+
+    let x = domain0[idx % domain0.len()];
+    let check = ((beta1 + x) / (x * F::from(2))).unwrap() * idx_pos_cp0
+        + ((beta1 - x) / (-x * F::from(2))).unwrap() * idx_neg_cp0;
+
+    assert_eq!(check, idx_pos_cp1);
+    let rands = [2,6,7,3,1,3,4].map(F::from);
+
+    let fri = Fri::prove(Poly::from([1,2,3,4,5,6,8]), &domain0, rands);
+    assert!(fri.verify(&domain0, rands));
+
+}
+
 #[test]
 fn stark101_test_1() {
-
     use itertools::Itertools;
 
     use crate::{
@@ -332,9 +508,9 @@ fn stark101_test_1() {
             let idx = idx % length;
             let sib_idx = (idx + length / 2) % length;
             channel.send_ff(layer[idx]);
-            channel.send_path(merkle.get_authentication_path(idx));
+            channel.send_path(&merkle.get_authentication_path(idx));
             channel.send_ff(layer[sib_idx]);
-            channel.send_path(merkle.get_authentication_path(sib_idx));
+            channel.send_path(&merkle.get_authentication_path(sib_idx));
         }
         channel.send_ff(*fri_layers.iter().last().and_then(|l| l.get(0)).unwrap());
     };
@@ -354,11 +530,11 @@ fn stark101_test_1() {
     let decommit_on_query = |idx: usize, channel: &mut Channel| {
         assert!(idx + 16 < f_eval.len());
         channel.send_ff(f_eval[idx]); // f(x).
-        channel.send_path(mt.get_authentication_path(idx)); // auth path for f(x).
+        channel.send_path(&mt.get_authentication_path(idx)); // auth path for f(x).
         channel.send_ff(f_eval[idx + 8]); // f(gx).
-        channel.send_path(mt.get_authentication_path(idx + 8)); // auth path for f(gx).
+        channel.send_path(&mt.get_authentication_path(idx + 8)); // auth path for f(gx).
         channel.send_ff(f_eval[idx + 16]); // f(g^2x).
-        channel.send_path(mt.get_authentication_path(idx + 16)); // auth path for f(g^2x).
+        channel.send_path(&mt.get_authentication_path(idx + 16)); // auth path for f(g^2x).
         decommit_on_fri_layers(idx, channel)
     };
 
@@ -369,13 +545,16 @@ fn stark101_test_1() {
             decommit_on_query(query, &mut test_channel);
         }
 
-        assert_eq!(test_channel.state,"856682d2782140a10a371eb258ee85c05618f34ee0c695ae836aec6e4fc3f9b1");
+        assert_eq!(
+            test_channel.state,
+            "856682d2782140a10a371eb258ee85c05618f34ee0c695ae836aec6e4fc3f9b1"
+        );
     }
 
     let decommit_fri = |channel: &mut Channel| {
         for _ in 0..3 {
             // Get a random index from the verifier and send the corresponding decommitment.
-            let rnd = channel.receive_random_int(0u64.into(), (8191u64-16).into());
+            let rnd = channel.receive_random_int(0u64.into(), (8191u64 - 16).into());
             let idx = if let Some(n) = rnd.to_u64_digits().first() {
                 *n as usize
             } else {
@@ -388,7 +567,9 @@ fn stark101_test_1() {
     {
         let mut test_channel = Channel::new();
         decommit_fri(&mut test_channel);
-        assert_eq!(test_channel.state, "3424b78347d24261f921cd1a3b6dec864c90729b8d7c2c678cde327c68ab7c5b");
+        assert_eq!(
+            test_channel.state,
+            "3424b78347d24261f921cd1a3b6dec864c90729b8d7c2c678cde327c68ab7c5b"
+        );
     }
-
 }

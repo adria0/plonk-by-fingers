@@ -187,8 +187,10 @@ impl<F: Field> From<Poly<F>> for Matrix<F> {
     }
 }
 
-impl<F:Field> From<Matrix<F>> for Vec<F> {
-    fn from(m: Matrix<F>) -> Self {  m.v }
+impl<F: Field> From<Matrix<F>> for Vec<F> {
+    fn from(m: Matrix<F>) -> Self {
+        m.v
+    }
 }
 
 #[cfg(test)]

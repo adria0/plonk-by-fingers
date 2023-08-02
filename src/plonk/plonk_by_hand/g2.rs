@@ -5,7 +5,7 @@ use std::{
 
 use crate::{field::Field, pairing::G2};
 
-use super::types::{F101, f101};
+use super::types::{f101, F101};
 
 #[allow(non_snake_case)]
 pub fn g2f(a: u64, b: u64) -> G2P {
