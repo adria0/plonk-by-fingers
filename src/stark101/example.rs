@@ -1,4 +1,5 @@
 #![allow(non_snake_case, dead_code)]
+#![allow(clippy::needless_range_loop)]
 
 use itertools::Itertools;
 
@@ -146,6 +147,7 @@ struct FriQuery {
 impl FriQuery {
     fn verify(
         &self,
+        domain: &[FF],
         witness_root: String,
         cp_roots: &[String],
         rotations: Vec<usize>,
@@ -166,17 +168,27 @@ impl FriQuery {
             cp = cp + constrain * alpha;
         }
 
-        println!("verify::cp={}", cp.hash());
+        // Check FRI layers
+        let next_domain = |domain: &[FF]| {
+            domain
+                .iter()
+                .map(|v| v * v)
+                .take(domain.len() / 2)
+                .collect::<Vec<_>>()
+        };
+        let mut domain = domain.to_vec();
+        for layer in 0..self.cp.layers.len() - 1 {
+            let rand = betas[layer];
+            let x = domain[self.idx % domain.len()];
 
-        let l = 0;
-        let eval_g_x2 =
-            ((self.cp.layers[l].pos_x - self.cp.layers[l].neg_x) / FF::from(2)).unwrap();
-        let eval_h_x2 = ((self.cp.layers[l].pos_x - self.cp.layers[l].neg_x)
-            / (FF::from(2) * FF::from(self.idx as u64)))
-        .unwrap();
-        let eval_cp_next = eval_g_x2 + betas[l] * eval_h_x2;
+            let check = ((rand + x) / (x * FF::from(2))).unwrap() * self.cp.layers[layer].pos_x
+            + ((rand - x) / (-x * FF::from(2))).unwrap() * self.cp.layers[layer].neg_x;
 
-        assert_eq!(eval_cp_next, self.cp.layers[l + 1].pos_x);
+            assert_eq!(check, self.cp.layers[layer + 1].pos_x);
+            domain = next_domain(&domain);
+        }
+
+        // Check MTs
 
         for (root, layer) in cp_roots
             .iter()
@@ -284,8 +296,6 @@ impl FriCommit {
                 let idx = idx % length;
                 let sib_idx = (idx + length / 2) % length;
 
-                println!("sampling at index = {}", idx);
-
                 let layer = FriLayer {
                     length,
                     root: mt.root(),
@@ -315,13 +325,11 @@ impl FriCommit {
         for _ in 0..1 {
             // Get a random index from the verifier and send the corresponding decommitment.
             let rnd = channel.receive_random_int(0u64.into(), (8191u64 - 16).into());
-            let mut idx = if let Some(n) = rnd.to_u64_digits().first() {
+            let idx = if let Some(n) = rnd.to_u64_digits().first() {
                 *n as usize
             } else {
-                0
+                1
             };
-            let idx = 2;
-            // = std::cmp::max(idx,2);
 
             let mut witness_decommit = vec![];
 
@@ -375,11 +383,6 @@ fn stark101_test_2() {
             -
     */
 
-    // PART I : Trace and Low-Degree Extension =============================
-    // =====================================================================
-
-    // FibonacciSq Trace ------------------------------
-
     let x = 3141592.into();
     let witness = FibonacciSq::witness(vec![x]);
 
@@ -406,7 +409,7 @@ fn stark101_test_2() {
 
     // Prove that cp is close to a polynomial of low degree
 
-    let commit = FriCommit::commit(cp, dom.coset, &mut channel);
+    let commit = FriCommit::commit(cp, dom.coset.clone(), &mut channel);
     let queries = commit.decommit(
         &witness_at_coset_mt,
         witness_at_coset,
@@ -416,6 +419,7 @@ fn stark101_test_2() {
 
     for q in queries {
         assert!(q.verify(
+            &dom.coset,
             witness_at_coset_mt.root(),
             &commit.cps_at_domains_root,
             FibonacciSq::rotations(),

@@ -1,4 +1,3 @@
-pub mod driving_fri;
 pub mod fft;
 pub mod field;
 pub mod matrix;
