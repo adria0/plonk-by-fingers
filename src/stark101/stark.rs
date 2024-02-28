@@ -300,7 +300,3 @@ impl FriCommit {
     }
 }
 
-pub trait StarkProver<P: Program> {
-
-
-}

@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-#![allow(clippy::module_inception)]
 
 use crate::field::{Field, U64Field};
 use crate::poly::Poly;
@@ -19,8 +18,8 @@ mod stark101 {
 
     use itertools::Itertools;
 
-    use crate::{stark101::stark::Program, field::Field, poly::Poly, stark101::stark::StarkDomain};
-    use super::{FF, mt::MerkleTree, channel::Channel, stark::FriCommit};
+    use crate::{stark101::stark::Program, field::Field, poly::Poly};
+    use super::{FF, mt::MerkleTree, channel::Channel, stark::{FriCommit, StarkDomain}};
 
     struct FibonacciSq {}
 
@@ -124,7 +123,6 @@ fn stark101() {
         .iter()
         .map(|_| channel.receive_random_field_element())
         .collect();
-
     for (constrain, alpha) in constraints.iter().zip_eq(alphas.iter()) {
         cp = cp + constrain * alpha;
     }
